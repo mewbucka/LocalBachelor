@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# LocalBachelor runtime (never commit secrets or data)
+config.yaml
+data_dir/
+
+# SQLite DB (WAL) — db_path lives inside data_dir by default
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3

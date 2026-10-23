@@ -1,0 +1,40 @@
+# LocalBachelor bootstrap configuration.
+#
+# Copy this file to config.yaml and fill in real values:
+#   cp config.example.yaml config.yaml
+# config.yaml is gitignored and holds ONLY the bootstrap values below.
+# Every other setting lives in the DB settings store and is edited via the
+# UI (roadmap rule 7). See README.md for key semantics and the rotation
+# procedure.
+
+# Session signing + CSRF key: signs the auth session cookie and the
+# double-submit CSRF token.
+# Generate:  python -c "import secrets; print(secrets.token_urlsafe(32))"
+# Losing it invalidates all active sessions (users re-login); no data is lost.
+secret_key: "CHANGE_ME_token_urlsafe_32"
+
+# Fernet key for encrypting stored provider API keys at rest in the DB
+# settings store. Key storage is OPTIONAL: fully local (keyless) deployments
+# never store provider keys and can leave this as a generated dummy value.
+# Generate:  pip install cryptography
+#            python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# Losing it makes stored provider keys UNRECOVERABLE: they must be re-entered
+# through the settings UI. Backing up this key alongside the DB is a Phase 8
+# gate for public deploys.
+settings_key: "CHANGE_ME_fernet_key"
+
+# Path to the SQLite database file (WAL mode), relative to the repo root.
+# Kept inside data_dir by default.
+db_path: "data_dir/local-bachelor.db"
+
+# Directory for all runtime data (database + WAL files, extracted artifacts).
+# Gitignored.
+data_dir: "data_dir"
+
+# Network bind address. Default is 127.0.0.1 (localhost only).
+# Set to 0.0.0.0 to allow LAN access: this is an explicit opt-in and the UI
+# shows a warning (security baseline, roadmap 1.6).
+host: "127.0.0.1"
+
+# HTTP port.
+port: 8000

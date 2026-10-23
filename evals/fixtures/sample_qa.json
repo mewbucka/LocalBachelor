@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "fixtures": [
+    {
+      "id": "en-001",
+      "lang": "en",
+      "type": "exact_name",
+      "question": "In what year was the Carpathian Brown Bear Monitoring Network founded, and which organization founded it?",
+      "expected": {
+        "chunk_ids": ["en_bear_monitoring#1"],
+        "source_ids": ["en_bear_monitoring"]
+      }
+    },
+    {
+      "id": "en-002",
+      "lang": "en",
+      "type": "paraphrase",
+      "question": "What two techniques does the network use to collect bear data, and how many bears carry tracking devices?",
+      "expected": {
+        "chunk_ids": ["en_bear_monitoring#2"],
+        "source_ids": ["en_bear_monitoring"]
+      }
+    },
+    {
+      "id": "en-003",
+      "lang": "en",
+      "type": "multi_source",
+      "question": "What is the current estimated size of the Carpathian brown bear population, and which protected area provides its main habitat?",
+      "expected": {
+        "chunk_ids": ["en_bear_monitoring#3", "uk_bear_population#3", "uk_bear_population#5"],
+        "source_ids": ["en_bear_monitoring", "uk_bear_population"]
+      }
+    },
+    {
+      "id": "en-004",
+      "lang": "en",
+      "type": "unanswerable",
+      "question": "What is the average weight of an adult male Carpathian brown bear?",
+      "expected": {
+        "chunk_ids": [],
+        "source_ids": []
+      }
+    },
+    {
+      "id": "uk-001",
+      "lang": "uk",
+      "type": "exact_name",
+      "question": "Коли було створено Карпатський національний природний парк і яка його площа?",
+      "expected": {
+        "chunk_ids": ["uk_bear_population#3"],
+        "source_ids": ["uk_bear_population"]
+      }
+    },
+    {
+      "id": "uk-002",
+      "lang": "uk",
+      "type": "paraphrase",
+      "question": "Чому чисельність ведмедів у Карпатах різко знизилася до кінця XX століття?",
+      "expected": {
+        "chunk_ids": ["uk_bear_population#2"],
+        "source_ids": ["uk_bear_population"]
+      }
+    },
+    {
+      "id": "uk-003",
+      "lang": "uk",
+      "type": "multi_source",
+      "question": "Яка сучасна оцінка чисельності карпатського ведмędя і які методи його моніторингу використовують дослідники?",
+      "expected": {
+        "chunk_ids": ["uk_bear_population#5", "en_bear_monitoring#2"],
+        "source_ids": ["uk_bear_population", "en_bear_monitoring"]
+      }
+    },
+    {
+      "id": "uk-004",
+      "lang": "uk",
+      "type": "unanswerable",
+      "question": "Яка середня тривалість життя карпатського бурого ведмędя у дикій природі?",
+      "expected": {
+        "chunk_ids": [],
+        "source_ids": []
+      }
+    }
+  ]
+}

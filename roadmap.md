@@ -107,7 +107,7 @@ Tasks marked (post-MVP) may land after.
       protocol; plus layout, data model, API contracts, provider
       interfaces, chunking/retrieval params, security model, i18n,
       deployment. Based strictly on Locked decisions v3.
-- [ ] 0.2 Repo bootstrap: git, .gitignore, README, pyproject (pinned),
+- [x] 0.2 Repo bootstrap: git, .gitignore, README, pyproject (pinned),
       ruff+pytest config, config.example.yaml (secret_key, settings_key,
       db_path, data_dir, host, port), evals/ with 2 sample docs + QA pairs.
 - [ ] 0.3 App skeleton: factory, config loader, logging, /healthz, error
