@@ -1,0 +1,50 @@
+# LocalBachelor systemd unit (roadmap task 0.4; architecture.md §15).
+#
+# Single process: FastAPI app + in-process job worker (SQLite in data_dir,
+# WAL mode). No separate worker service in v1.
+#
+# This file contains NO secrets: the two bootstrap keys (secret_key,
+# settings_key) live in the gitignored config.yaml, which you create from
+# config.example.yaml before enabling the unit.
+#
+# ExecStart mirrors the real CLI in app/main.py exactly:
+#     python -m app.main --config <abs path to config.yaml>
+#
+# Before enabling, point the two paths below at your checkout:
+#   WorkingDirectory=  the repo root (relative db_path / data_dir in
+#                      config.yaml resolve against this directory)
+#   ExecStart=         your venv's python + the absolute config.yaml path
+# `%h` expands to the user's home directory in user-level units; in a
+# system-level unit replace every %h with the absolute checkout path.
+#
+# --- Install (user-level, no root; recommended for a single-user box) ---
+#   install -Dm644 deploy/local-bachelor.service \
+#       "$HOME/.config/systemd/user/local-bachelor.service"
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now local-bachelor.service
+#   loginctl enable-linger "$USER"      # keep it running after logout
+#
+# --- Install (system-level, shared/server box) ---
+#   Change [Install] WantedBy= to: multi-user.target
+#   sudo cp deploy/local-bachelor.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now local-bachelor.service
+#   (Consider a dedicated unprivileged account: add User=/Group= in [Service].)
+
+[Unit]
+Description=LocalBachelor (local-first RAG research assistant)
+After=network.target
+
+[Service]
+Type=simple
+# Repo root: relative db_path / data_dir in config.yaml resolve against it.
+WorkingDirectory=%h/local-bachelor
+# JSON log level read by app/core/logging.py (default INFO).
+Environment=LOG_LEVEL=info
+# Real CLI entrypoint from app/main.py — keep it a plain one-liner.
+ExecStart=%h/local-bachelor/.venv/bin/python -m app.main --config %h/local-bachelor/config.yaml
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

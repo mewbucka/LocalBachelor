@@ -112,7 +112,7 @@ Tasks marked (post-MVP) may land after.
       db_path, data_dir, host, port), evals/ with 2 sample docs + QA pairs.
 - [x] 0.3 App skeleton: factory, config loader, logging, /healthz, error
       middleware.
-- [ ] 0.4 systemd unit (4-line ExecStart) + README first-run (wizard).
+- [x] 0.4 systemd unit (4-line ExecStart) + README first-run (wizard).
 - [ ] 0.5 scripts/check.sh quality gate.
 - [ ] 0.6 Target-env probe ON THE LINUX SERVER: sqlite-vec + FTS5 load on
       server Python/SQLite; record versions in architecture.md.

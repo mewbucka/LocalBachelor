@@ -35,16 +35,43 @@ Source of truth: `architecture.md`. Process: `roadmap.md`.
    cp config.example.yaml config.yaml
    ```
 
-3. Generate the two keys and put them into `config.yaml` (commands in the
-   file's comments; semantics below).
+   Then generate the two keys and paste them into `config.yaml`, replacing
+   the `CHANGE_ME_...` placeholders:
 
-4. Start the app. Once task 0.3 lands, the entry point is the FastAPI app
-   factory; `host`/`port` are read from `config.yaml` (default
-   `127.0.0.1:8000`). On Linux servers, the systemd unit from task 0.4 runs
-   it as a service.
+   ```sh
+   # secret_key — signs the session cookie + CSRF token
+   python -c "import secrets; print(secrets.token_urlsafe(32))"
 
-5. Open `http://127.0.0.1:8000`. The first-run wizard (task 1.2) creates the
-   admin account and picks the UI language (en/uk).
+   # settings_key — Fernet key encrypting stored provider API keys
+   pip install cryptography
+   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+   ```
+
+   Semantics, loss consequences, and the rotation procedure:
+   [Bootstrap keys](#bootstrap-keys).
+
+3. Start the app from the repo root:
+
+   ```sh
+   python -m app.main --config config.yaml
+   ```
+
+   `host`/`port` are read from `config.yaml` (default `127.0.0.1:8000`).
+   On a Linux server, run it as a service instead: `deploy/local-bachelor.service`
+   (user-level or system-level install; both shown in the unit's comments).
+
+4. Smoke check — the Phase 0 skeleton serves exactly one endpoint:
+
+   ```sh
+   curl http://127.0.0.1:8000/healthz
+   # → {"status":"ok"}
+   ```
+
+   Stop the server with Ctrl+C (or `systemctl stop local-bachelor`).
+
+5. The admin account will be created by the first-run wizard (task 1.2,
+   Phase 1), which also picks the UI language (en/uk). Until Phase 1 lands
+   there is no login page, no UI, and no user data.
 
 ## Bootstrap keys
 
