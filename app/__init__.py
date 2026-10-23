@@ -1,0 +1,1 @@
+"""LocalBachelor application package."""

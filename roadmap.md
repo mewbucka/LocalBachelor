@@ -110,7 +110,7 @@ Tasks marked (post-MVP) may land after.
 - [x] 0.2 Repo bootstrap: git, .gitignore, README, pyproject (pinned),
       ruff+pytest config, config.example.yaml (secret_key, settings_key,
       db_path, data_dir, host, port), evals/ with 2 sample docs + QA pairs.
-- [ ] 0.3 App skeleton: factory, config loader, logging, /healthz, error
+- [x] 0.3 App skeleton: factory, config loader, logging, /healthz, error
       middleware.
 - [ ] 0.4 systemd unit (4-line ExecStart) + README first-run (wizard).
 - [ ] 0.5 scripts/check.sh quality gate.

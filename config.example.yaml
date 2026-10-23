@@ -23,12 +23,18 @@ secret_key: "CHANGE_ME_token_urlsafe_32"
 # gate for public deploys.
 settings_key: "CHANGE_ME_fernet_key"
 
-# Path to the SQLite database file (WAL mode), relative to the repo root.
-# Kept inside data_dir by default.
-db_path: "data_dir/local-bachelor.db"
+# Path to the SQLite database file (WAL mode).
+# Give an ABSOLUTE path, or a path RELATIVE TO data_dir (the default below
+# resolves to <data_dir>/local-bachelor.db). The directory is created on
+# first start.
+# On Windows use forward slashes (YAML double quotes treat backslashes as
+# escape characters).
+db_path: "local-bachelor.db"
 
 # Directory for all runtime data (database + WAL files, extracted artifacts).
-# Gitignored.
+# Relative paths resolve against the directory the server is started from
+# (the systemd unit sets WorkingDirectory to the repo root).
+# Gitignored; created on first start if missing.
 data_dir: "data_dir"
 
 # Network bind address. Default is 127.0.0.1 (localhost only).
