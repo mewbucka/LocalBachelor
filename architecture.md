@@ -31,7 +31,8 @@ Docs-sync tasks at the end of each phase keep this file consistent.
 
 ## 2. Layout
 
-Intended repository layout (files appear as their roadmap tasks land):
+Repository layout. Phase 0 is complete: entries with a Phase 0 task number
+exist now; entries for later phases appear as their roadmap tasks land.
 
 ```
 LocalBachelor/
@@ -39,33 +40,41 @@ LocalBachelor/
 ├── architecture.md            # this file; source of truth
 ├── README.md                  # (0.2) first-run, keys, recipes, ops
 ├── pyproject.toml             # (0.2) pinned deps, ruff + pytest config
+├── .gitignore                 # (0.2) venvs, caches, config.yaml, data_dir, DB files
+├── .gitattributes             # (0.5) *.sh forced to LF so check.sh runs on every platform
 ├── config.example.yaml        # (0.2) secret_key, settings_key, db_path, data_dir, host, port
 ├── config.yaml                # gitignored; ONLY bootstrap secrets + host/port
-├── evals/                     # (0.2) 2 sample docs + QA pairs; fixture + run files
+├── evals/                     # (0.2) 2 sample docs (UA+EN) + QA fixtures; run files (4.4)
 │   ├── docs/
 │   └── fixtures/
 ├── scripts/
-│   └── check.sh               # (0.5) quality gate: lint + typecheck + tests
+│   ├── check.sh               # (0.5) quality gate: ruff, pytest, mypy — fails fast
+│   └── probe_env.py           # (0.6) target-env probe: python/WAL/FTS5/sqlite-vec/ICU
 ├── deploy/
-│   └── local-bachelor.service # (0.4) 4-line ExecStart systemd unit
+│   └── local-bachelor.service # (0.4) systemd unit; single-line ExecStart mirroring the CLI
 ├── app/
-│   ├── main.py                # (0.3) app factory
-│   ├── config.py              # (0.3) config loader (bootstrap keys only)
-│   ├── core/                  # (0.3) logging, error middleware
-│   ├── db/                    # engine (WAL), session, models, alembic/
-│   ├── repositories/          # every query owner/project-scoped
-│   ├── services/              # chunker, indexer, retrieval, chat pipeline,
+│   ├── main.py                # (0.3) app factory + CLI (python -m app.main --config)
+│   ├── config.py              # (0.3) bootstrap config loader (config.yaml only, no env)
+│   ├── core/
+│   │   ├── logging.py         # (0.3) single-line JSON logging (LOG_LEVEL)
+│   │   └── errors.py          # (0.3) JSON error handlers, correlation_id
+│   ├── db/
+│   │   └── engine.py          # (0.3) engine (WAL, busy_timeout, foreign_keys) + session factory
+│   ├── models/                # (Phase 1) SQLAlchemy models + alembic/
+│   ├── repositories/          # (Phase 1+) every query owner/project-scoped
+│   ├── services/              # (Phase 3+) chunker, indexer, retrieval, chat pipeline,
 │   │                          # citation validator, eval runner, job queue
 │   ├── providers/
-│   │   ├── chat/              # OpenAI-compatible (+ post-MVP adapters)
-│   │   ├── embeddings/        # OpenAI-compatible HTTP (+ post-MVP)
-│   │   ├── search/            # SearXNG, DuckDuckGo (+ post-MVP)
-│   │   └── vectorstore/       # SQLiteVecStore; Qdrant later
-│   ├── api/                   # FastAPI routers (see API contracts)
-│   ├── i18n/                  # en/uk catalogs
-│   ├── templates/             # Jinja2, single CSS, vanilla JS + HTMX + Alpine
-│   └── static/
-└── tests/                     # mirrors app/; negative isolation tests mandatory
+│   │   ├── chat/              # (Phase 2) OpenAI-compatible (+ post-MVP adapters)
+│   │   ├── embeddings/        # (Phase 2) OpenAI-compatible HTTP (+ post-MVP)
+│   │   ├── search/            # (Phase 2) SearXNG, DuckDuckGo (+ post-MVP)
+│   │   └── vectorstore/       # (Phase 3) SQLiteVecStore; Qdrant later
+│   ├── api/                   # (Phase 1+) FastAPI routers (see API contracts)
+│   ├── i18n/                  # (Phase 1) en/uk catalogs
+│   ├── templates/             # (Phase 1) Jinja2, single CSS, vanilla JS + HTMX + Alpine
+│   └── static/                # (Phase 1)
+└── tests/                     # mirrors app/ (Phase 0: config, logging, main, probe_env);
+                               # negative isolation tests mandatory from Phase 1
 ```
 
 Runtime data (gitignored): `data_dir/` holds the SQLite DB (WAL) and any
@@ -232,6 +241,13 @@ See Embedding contract (section 5) — `model_id`, `dim`, `normalize`,
 - `upsert(ids, vectors)`, `delete(ids)`, `knn(vector, k, filters)`, `count()`
 - v1 implementation: `SQLiteVecStore` (sqlite-vec, cosine over
   L2-normalized vectors); the interface is the seam for Qdrant later.
+- **Extension loading:** `SQLiteVecStore` MUST call
+  `conn.enable_load_extension(True)` before loading the sqlite-vec
+  extension — Python 3.11+ disables extension loading by default. If the
+  attribute is absent (a distro Python built without loadable-extension
+  support) or the call fails, the store MUST fail fast at startup with a
+  clear error pointing to README → Deployment (run the environment probe
+  with the app venv's Python). The 0.6 probe checks exactly this path.
 
 ### TextParser (extractors)
 - `parse(data) → ParsedDoc { text, pages[(page, text)], headings[(path, char range)] }`
@@ -487,8 +503,26 @@ Caddy HTTPS; log rotation.
 
 - **Single process:** FastAPI app + in-process worker thread; SQLite (WAL)
   in `data_dir`. No separate worker service in v1.
-- **systemd (now):** `deploy/local-bachelor.service`, 4-line `ExecStart`;
-  user-level or system unit per host.
+- **Runtime entrypoint:** `python -m app.main --config <path to config.yaml>`;
+  `host`/`port` come from `config.yaml` (default `127.0.0.1:8000`).
+- **systemd (now):** `deploy/local-bachelor.service`; user-level or
+  system unit per host (install instructions in the unit's comments).
+  The unit sets `WorkingDirectory` to the repo root (relative
+  `db_path`/`data_dir` in `config.yaml` resolve against it),
+  `Environment=LOG_LEVEL=info`, and a single-line `ExecStart` that
+  mirrors the entrypoint above exactly (the venv's python + an absolute
+  `config.yaml` path). The unit contains no secrets: the bootstrap keys
+  live in the gitignored `config.yaml`.
+- **Logging:** every log line is a single JSON object (`ts`, `level`,
+  `logger`, `msg`, plus any extras as top-level fields); level from the
+  `LOG_LEVEL` environment variable (default `INFO`). Error responses and
+  the log lines they produce carry a `correlation_id` that echoes the
+  incoming `X-Request-ID` header (or a generated one) and is returned in
+  the response `X-Request-ID` header, so a reported request can be found
+  in the logs. The server runs uvicorn with `log_config=None` so uvicorn
+  does NOT re-install its own plain-text logging config over the app's
+  JSON setup (the `uvicorn*` loggers are routed through the JSON handler
+  instead).
 - **Sidecars (user-managed, outside our deploy):**
   - `llama-server` for OpenAI-compatible chat and/or `--embedding` GGUF
     models (one-command recipe in README; covers the whole MVP on a local

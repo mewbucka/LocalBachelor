@@ -212,5 +212,5 @@ sample documents are not ingested into a live DB yet. The eval runner
 
 ## Status
 
-Phase 0 (bootstrap) in progress — see `roadmap.md` for the task list and
+Phase 0 (bootstrap) complete — see `roadmap.md` for the task list and
 `architecture.md` for all normative contracts.

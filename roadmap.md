@@ -116,7 +116,7 @@ Tasks marked (post-MVP) may land after.
 - [x] 0.5 scripts/check.sh quality gate.
 - [x] 0.6 Target-env probe ON THE LINUX SERVER: sqlite-vec + FTS5 load on
       server Python/SQLite; record versions in architecture.md.
-- [ ] 0.7 Docs sync.
+- [x] 0.7 Docs sync.
 
 ## Phase 1 — Users, auth, i18n, security baseline, isolation
 
