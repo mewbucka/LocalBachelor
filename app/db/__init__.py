@@ -1,1 +1,1 @@
-"""Database layer: engine (WAL), session factory. Models land in Phase 1."""
+"""Database layer: engine (WAL), request-scoped session factory."""

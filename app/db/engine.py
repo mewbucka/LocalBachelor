@@ -3,6 +3,10 @@
 Single DB file under data_dir (architecture sections 3 and 15). The
 in-process worker thread (Phase 3) shares this engine, so connections are
 created cross-thread.
+
+``build_engine(url)`` is the single place where the SQLite PRAGMAs are
+applied; both the app (``init_engine``) and the alembic ``env.py`` use it
+so migrations run against the same WAL-configured database.
 """
 
 from __future__ import annotations
@@ -16,18 +20,16 @@ from app.config import Settings
 BUSY_TIMEOUT_MS = 5000
 
 
-def init_engine(settings: Settings) -> Engine:
-    """Create the engine, ensure the data directories exist, set WAL.
+def build_engine(url: str) -> Engine:
+    """Create a SQLite engine with WAL + busy_timeout + foreign_keys.
 
-    PRAGMAs are applied to every new connection via the `connect` event:
+    PRAGMAs are applied to every new connection via the ``connect`` event:
     journal_mode=WAL persists in the file, busy_timeout and foreign_keys
-    are per-connection.
+    are per-connection. The first connection is forced so WAL mode is set
+    immediately, before any schema work.
     """
-    settings.resolved_data_dir.mkdir(parents=True, exist_ok=True)
-    settings.resolved_db_path.parent.mkdir(parents=True, exist_ok=True)
-
     engine = create_engine(
-        f"sqlite:///{settings.resolved_db_path.as_posix()}",
+        url,
         echo=False,
         connect_args={"check_same_thread": False},
     )
@@ -40,11 +42,17 @@ def init_engine(settings: Settings) -> Engine:
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
 
-    # Force the first connection so WAL mode is set at startup.
     with engine.connect():
         pass
 
     return engine
+
+
+def init_engine(settings: Settings) -> Engine:
+    """Create the engine, ensure the data directories exist, set WAL."""
+    settings.resolved_data_dir.mkdir(parents=True, exist_ok=True)
+    settings.resolved_db_path.parent.mkdir(parents=True, exist_ok=True)
+    return build_engine(f"sqlite:///{settings.resolved_db_path.as_posix()}")
 
 
 def create_session_factory(engine: Engine) -> sessionmaker[Session]:

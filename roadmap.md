@@ -120,7 +120,7 @@ Tasks marked (post-MVP) may land after.
 
 ## Phase 1 — Users, auth, i18n, security baseline, isolation
 
-- [ ] 1.1 Alembic + users table; argon2id; login/logout; session middleware;
+- [x] 1.1 Alembic + users table; argon2id; login/logout; session middleware;
       roles.
 - [ ] 1.2 First-run wizard: admin account + UI language.
 - [ ] 1.3 i18n engine: en/uk catalogs, `_()` in Jinja, per-user preference,

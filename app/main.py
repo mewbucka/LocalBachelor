@@ -15,7 +15,9 @@ from pathlib import Path
 import uvicorn
 from fastapi import FastAPI, Request
 
+from app.api.auth import router as auth_router
 from app.config import load_settings
+from app.core.auth import SessionManager, resolve_session_user_id
 from app.core.errors import register_error_handlers
 from app.core.logging import setup_logging
 from app.db.engine import create_session_factory, init_engine
@@ -26,8 +28,9 @@ logger = logging.getLogger(__name__)
 def create_app(config_path: str | Path = "config.yaml") -> FastAPI:
     """Build the FastAPI app from bootstrap config.
 
-    Wires: structured logging, config, SQLite engine (WAL), session
-    middleware hook (real stack in Phase 1), /healthz, JSON error handlers.
+    Wires: structured logging, config, SQLite engine (WAL), the session
+    stack (task 1.1: SessionManager + session middleware + login/logout),
+    /healthz, JSON error handlers.
     """
     setup_logging()
 
@@ -41,17 +44,20 @@ def create_app(config_path: str | Path = "config.yaml") -> FastAPI:
     app.state.settings = settings
     app.state.engine = engine
     app.state.session_factory = session_factory
-    # Session middleware hook: the real session-cookie + argon2id stack
-    # lands in Phase 1 (tasks 1.1-1.2). The placeholder keeps the wiring
-    # point in place so Phase 1 replaces one function, not the stack.
-    app.state.session_store = None
+    # Task 1.1: the real session stack. Compact signed tokens (no
+    # server-side session table); the signing key is config.yaml's
+    # secret_key (roadmap rule 7).
+    app.state.session_store = SessionManager(settings.secret_key)
 
     @app.middleware("http")
     async def session_middleware(request: Request, call_next):
-        request.state.user = None  # set by the Phase 1 session middleware
+        # Resolve the session cookie once per request; route dependencies
+        # (get_current_user) read the result from request.state.
+        request.state.session_user_id = resolve_session_user_id(request)
         return await call_next(request)
 
     register_error_handlers(app)
+    app.include_router(auth_router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:

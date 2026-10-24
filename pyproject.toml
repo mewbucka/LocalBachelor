@@ -40,6 +40,11 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI dependency injection calls Depends/Query/... in argument defaults;
+# that is the intended pattern, so allow it for B008.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]

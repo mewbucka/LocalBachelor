@@ -4,6 +4,7 @@ import pytest
 from fastapi import Query
 from fastapi.testclient import TestClient
 
+from app.core.auth import SessionManager
 from app.main import create_app
 
 
@@ -76,7 +77,7 @@ def test_app_state_wired(app):
     assert app.state.settings is not None
     assert app.state.engine is not None
     assert app.state.session_factory is not None
-    assert app.state.session_store is None  # configured in Phase 1
+    assert isinstance(app.state.session_store, SessionManager)
 
 
 def test_engine_connection_is_in_wal_mode(app):
