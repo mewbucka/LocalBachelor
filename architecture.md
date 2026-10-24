@@ -305,7 +305,32 @@ reserved for v2.
    `chunk_config_version` change; embedding incompatibility (section 5).
 6. **Retired versions** are GC-eligible (retention policy: Open
    decisions).
+7. Target-server environment probe — RESOLVED
 
+**Task:** 0.6  
+**Date:** 2026-10-24  
+**Target:** ChornyServer (Linux x86_64)  
+**Probe:** `scripts/probe_env.py`  
+**Result:** PASS — 4/4 critical checks passed, exit code 0.
+
+| Component | Detected version / result | Status |
+|---|---|---|
+| Python | CPython 3.12.3 | PASS |
+| SQLite | 3.45.1 | PASS |
+| SQLite WAL | `journal_mode=wal` | PASS |
+| SQLite FTS5 | CREATE / INSERT / MATCH successful | PASS |
+| sqlite-vec | v0.1.9, vec0 KNN roundtrip successful | PASS |
+| ICU tokenizer | Not available | WARN (optional) |
+| FTS5 fallback | `unicode61` | Accepted |
+
+**Environment details:**
+- Platform: Linux 7.0.0-28-generic, x86_64, glibc 2.39.
+- Python virtual environment: `/tmp/probe-venv`.
+- Probe output: `/tmp/probe-out.txt` (temporary server file).
+
+**Decision:** The target server satisfies all critical environment requirements. ICU is unavailable, so FTS5 will use the `unicode61` tokenizer as specified in §17 item 3. No blocker for subsequent implementation or deployment tasks.
+
+**Status:** RESOLVED. Task 0.6 complete.
 Mandatory test: kill the process mid-indexing → old version still
 serves, partial build GC'd, no half-swapped state.
 
