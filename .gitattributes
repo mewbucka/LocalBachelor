@@ -1,0 +1,4 @@
+# Shell scripts must keep LF endings on every platform: with
+# core.autocrlf=true a Windows checkout would produce CRLF and bash
+# would refuse to run them (the quality gate must work on dev + server).
+*.sh text eol=lf

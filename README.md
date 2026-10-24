@@ -73,6 +73,28 @@ Source of truth: `architecture.md`. Process: `roadmap.md`.
    Phase 1), which also picks the UI language (en/uk). Until Phase 1 lands
    there is no login page, no UI, and no user data.
 
+## Development
+
+Run the quality gate before every commit; it must exit 0:
+
+```sh
+./scripts/check.sh
+```
+
+The gate runs three checks, in order, and fails fast — the first failure
+exits non-zero immediately:
+
+| Check | Command | What it catches |
+|---|---|---|
+| lint | `ruff check app tests` | Style, unused imports, bug-prone patterns |
+| tests | `pytest -q` | The whole test suite must pass |
+| types | `mypy app` | Static type errors in `app/` |
+
+The script works from any directory and uses the repo `.venv` when present
+(`.venv/bin` on Linux, `.venv/Scripts` on Windows), so no venv activation is
+needed. The dev tools (`pytest`, `ruff`, `mypy`, `types-PyYAML`) come from
+the `dev` extra: `pip install -e ".[dev]"`.
+
 ## Bootstrap keys
 
 `config.yaml` holds exactly two secrets plus `db_path`, `data_dir`, `host`,

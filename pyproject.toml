@@ -28,6 +28,9 @@ dev = [
     "pytest==9.1.1",
     "ruff==0.17.2",
     "mypy==2.4.0",
+    # mypy stubs for PyYAML (app/config.py imports yaml; PyYAML ships no
+    # py.typed) — required for `mypy app` in scripts/check.sh to pass.
+    "types-PyYAML==6.0.12.20260906",
 ]
 
 [tool.ruff]
