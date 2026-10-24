@@ -587,5 +587,17 @@ section above.
 5. **Retired index version retention** — immediate GC after swap vs
    deferred cleanup; resolve in Phase 3.
 6. **RRF constant `k`** — default 60; tune via Phase 4 eval runs.
-7. **sqlite-vec + SQLite versions on the target Linux server** — to be
-   recorded here by task 0.6.
+7. **sqlite-vec + SQLite versions on the target Linux server** — recorded
+   here by task 0.6: run `scripts/probe_env.py` on the server with the app
+   venv's Python (see README → Deployment) and paste the found values into
+   the template below.
+
+   Server: `<hostname>` — probed `<YYYY-MM-DD>`
+
+   | Check | Required | Found | Status |
+   |---|---|---|---|
+   | python | >= 3.12 | _pending_ | _pending_ |
+   | sqlite_wal | WAL journal mode | _pending_ | _pending_ |
+   | fts5 | FTS5 virtual tables | _pending_ | _pending_ |
+   | sqlite_vec | extension + vec0 | _pending_ | _pending_ |
+   | fts5_icu | optional (unicode61 fallback) | _pending_ | _pending_ |

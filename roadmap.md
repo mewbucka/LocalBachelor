@@ -114,7 +114,7 @@ Tasks marked (post-MVP) may land after.
       middleware.
 - [x] 0.4 systemd unit (4-line ExecStart) + README first-run (wizard).
 - [x] 0.5 scripts/check.sh quality gate.
-- [ ] 0.6 Target-env probe ON THE LINUX SERVER: sqlite-vec + FTS5 load on
+- [x] 0.6 Target-env probe ON THE LINUX SERVER: sqlite-vec + FTS5 load on
       server Python/SQLite; record versions in architecture.md.
 - [ ] 0.7 Docs sync.
 

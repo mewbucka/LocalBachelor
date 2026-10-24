@@ -169,6 +169,32 @@ context, and "Add to sources" is an explicit per-card action.
 with UI warning), `port`. All other settings live in the DB and are edited
 via the UI.
 
+## Deployment
+
+Before deploying to a target Linux server, run the environment probe ON
+THE SERVER. It verifies the interpreter and SQLite the app will run under
+and exits 0 only if every critical check passes:
+
+```sh
+# on the server, from the repo root
+.venv/bin/python scripts/probe_env.py
+```
+
+Always run it with the app venv's Python (`.venv/bin/python`), not the
+system one — the SQLite version and installed extensions differ per
+interpreter. Exit code 0: the host is deployable. Exit code 1: at least
+one critical check failed; the output names it and suggests the fix.
+After a passing run, paste the found versions into `architecture.md`
+section 17 (Open decisions, item 7).
+
+| Check | What it means | If it fails |
+|---|---|---|
+| `python` | The interpreter is Python 3.12+ (locked stack). | Install Python 3.12 (distro package, pyenv, or deadsnakes PPA) and re-run the probe with it. |
+| `sqlite_wal` | The SQLite linked by that interpreter supports WAL journal mode — the single-file DB runs in WAL (architecture.md §15). | Make the interpreter link a modern SQLite (WAL is standard since 3.7.0). |
+| `fts5` | FTS5 virtual tables work — the BM25 half of hybrid retrieval. | Use a SQLite build with FTS5 (most distro builds include it) so the interpreter links it. |
+| `sqlite_vec` | The sqlite-vec extension loads and `vec0` vector tables roundtrip — the vector half of retrieval. | `pip install sqlite-vec` in the app venv. If the package is installed but loading fails with `not authorized`, the interpreter's SQLite was built without loadable extensions — use a Python build that allows them. Alternatively set `SQLITE_VEC_PATH` to a system `vec0` shared library. |
+| `fts5_icu` | Optional: the ICU tokenizer for FTS5 (better uk/en tokenization). | Not required — FTS5 falls back to `unicode61` (architecture.md §17 item 3). To enable, use a SQLite build compiled with ICU. |
+
 ## Evaluations
 
 - `evals/docs/` — two sample documents, ~500 words each, with numbered
