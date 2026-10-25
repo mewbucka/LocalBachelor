@@ -1,0 +1,52 @@
+{#-
+  First-run wizard (roadmap 1.2). Minimal page, NO i18n engine yet: every
+  string is hardcoded as an (en, uk) pair and rendered "English · Українська".
+  Task 1.3 lands the i18n engine and retrofits this template to catalog lookups.
+
+  The pair strings (s.*, error) are hardcoded constants, never user input, so
+  they are emitted |safe (autoescaping would mangle the Ukrainian apostrophe
+  in Ім'я into &#39;). The echoed username stays autoescaped.
+-#}
+{%- set s = {
+    "title": ("LocalBachelor setup", "Налаштування LocalBachelor"),
+    "intro": ("Create the administrator account", "Створіть обліковий запис адміністратора"),
+    "username": ("Username", "Ім'я користувача"),
+    "password": ("Password", "Пароль"),
+    "password_hint": ("At least 8 characters", "Щонайменше 8 символів"),
+    "language": ("Interface language", "Мова інтерфейсу"),
+    "submit": ("Create account and continue", "Створити обліковий запис і продовжити"),
+} -%}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ s.title|join(" · ")|safe }}</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 26rem; margin: 4rem auto; padding: 0 1rem; }
+    label { display: block; margin: 1rem 0 .25rem; font-weight: 600; }
+    input, select { font: inherit; padding: .5rem; width: 100%; box-sizing: border-box; }
+    .hint { color: #666; font-size: .9rem; }
+    .error { color: #b00020; }
+    button { margin-top: 1.5rem; font: inherit; padding: .6rem 1rem; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>{{ s.title|join(" · ")|safe }}</h1>
+  <p>{{ s.intro|join(" · ")|safe }}</p>
+  {% if error %}<p class="error">{{ error|join(" · ")|safe }}</p>{% endif %}
+  <form method="post" action="/setup">
+    <label for="username">{{ s.username|join(" · ")|safe }}</label>
+    <input id="username" name="username" maxlength="64" required value="{{ username }}">
+    <label for="password">{{ s.password|join(" · ")|safe }}</label>
+    <input id="password" name="password" type="password" required>
+    <p class="hint">{{ s.password_hint|join(" · ")|safe }}</p>
+    <label for="lang">{{ s.language|join(" · ")|safe }}</label>
+    <select id="lang" name="lang">
+      <option value="en"{% if lang == "en" %} selected{% endif %}>English · Англійська</option>
+      <option value="uk"{% if lang == "uk" %} selected{% endif %}>Українська · Ukrainian</option>
+    </select>
+    <button type="submit">{{ s.submit|join(" · ")|safe }}</button>
+  </form>
+</body>
+</html>

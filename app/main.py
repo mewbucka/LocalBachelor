@@ -16,6 +16,7 @@ import uvicorn
 from fastapi import FastAPI, Request
 
 from app.api.auth import router as auth_router
+from app.api.setup import router as setup_router
 from app.config import load_settings
 from app.core.auth import SessionManager, resolve_session_user_id
 from app.core.errors import register_error_handlers
@@ -30,6 +31,7 @@ def create_app(config_path: str | Path = "config.yaml") -> FastAPI:
 
     Wires: structured logging, config, SQLite engine (WAL), the session
     stack (task 1.1: SessionManager + session middleware + login/logout),
+    the first-run wizard (task 1.2: /setup page + /api/auth/first-run),
     /healthz, JSON error handlers.
     """
     setup_logging()
@@ -58,6 +60,9 @@ def create_app(config_path: str | Path = "config.yaml") -> FastAPI:
 
     register_error_handlers(app)
     app.include_router(auth_router)
+    # Task 1.2: the HTML wizard page. Public while setup_needed; once any
+    # user exists it 303-redirects to / (see app/api/setup.py).
+    app.include_router(setup_router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:

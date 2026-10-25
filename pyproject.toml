@@ -10,6 +10,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi==0.162.0",
     "uvicorn==0.54.0",
+    "jinja2==3.1.6",
     "sqlalchemy==2.0.55",
     "alembic==1.20.1",
     "argon2-cffi==25.1.0",
@@ -41,9 +42,9 @@ target-version = "py312"
 select = ["E", "F", "W", "I", "UP", "B"]
 
 [tool.ruff.lint.flake8-bugbear]
-# FastAPI dependency injection calls Depends/Query/... in argument defaults;
-# that is the intended pattern, so allow it for B008.
-extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]
+# FastAPI dependency injection calls Depends/Query/Form/... in argument
+# defaults; that is the intended pattern, so allow it for B008.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Form", "fastapi.Query"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

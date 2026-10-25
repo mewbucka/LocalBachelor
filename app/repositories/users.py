@@ -13,7 +13,7 @@ content repositories:
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.passwords import hash_password, verify_password
@@ -28,6 +28,18 @@ class UserRepository:
 
     def __init__(self, session: Session) -> None:
         self._session = session
+
+    # -- unscoped identity queries ---------------------------------------
+
+    def count(self) -> int:
+        """Total number of user rows.
+
+        The users table is the identity layer, not tenant content, so this
+        is deliberately unscoped (section 11's owner filters apply to the
+        content repositories). First-run (task 1.2) uses it to detect an
+        empty instance.
+        """
+        return self._session.scalar(select(func.count()).select_from(User)) or 0
 
     # -- authentication -------------------------------------------------
 
