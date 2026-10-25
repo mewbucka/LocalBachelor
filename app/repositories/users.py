@@ -144,6 +144,24 @@ class UserRepository:
         self._session.flush()
         return True
 
+    def set_lang(self, user_id: int, lang: str, owner_id: int) -> bool:
+        """Change a user's UI language (architecture §14).
+
+        Self-service only: an account changes its OWN preference — there
+        is deliberately NO admin bypass (unlike set_active /
+        update_password), because a language preference is personal, not an
+        administrative act. Returns False (no change) when the target row
+        is missing or not the requester's own.
+        """
+        if lang not in _VALID_LANGS:
+            raise ValueError(f"invalid lang: {lang!r}")
+        row = self._session.get(User, user_id)
+        if row is None or row.id != owner_id:
+            return False
+        row.lang = lang
+        self._session.flush()
+        return True
+
     def set_active(self, user_id: int, active: bool, owner_id: int) -> bool:
         """Activate / deactivate an account. Administrative only (section 11).
 

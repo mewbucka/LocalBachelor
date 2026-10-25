@@ -78,6 +78,7 @@ def test_app_state_wired(app):
     assert app.state.engine is not None
     assert app.state.session_factory is not None
     assert isinstance(app.state.session_store, SessionManager)
+    assert app.state.templates is not None  # task 1.3: shared i18n template env
 
 
 def test_engine_connection_is_in_wal_mode(app):

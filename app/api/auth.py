@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import SessionManager
 from app.core.passwords import MIN_PASSWORD_LENGTH
 from app.db.session import get_db
+from app.i18n import request_locale, translate
 from app.repositories.users import UserRepository
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -47,7 +48,9 @@ def login(
     """Verify credentials; on success set the session cookie."""
     user = UserRepository(db).authenticate(body.username, body.password)
     if user is None:
-        raise HTTPException(status_code=401, detail="invalid credentials")
+        raise HTTPException(
+            status_code=401, detail=translate("auth.invalid_credentials", request_locale(request))
+        )
     manager.set_cookie(response, user.id)
     return {
         "id": user.id,
@@ -104,13 +107,17 @@ def first_run(
     """
     repo = UserRepository(db)
     if repo.count() > 0:
-        raise HTTPException(status_code=409, detail="setup already completed")
+        raise HTTPException(
+            status_code=409, detail=translate("auth.setup_completed", request_locale(request))
+        )
     try:
         user = repo.create(body.username, body.password, role="admin", lang=body.lang)
     except ValueError:
         # role and lang are already validated by the request model, so the
         # only ValueError ``create`` can raise here is "username already
         # taken" — a concurrent first-run POST won the race.
-        raise HTTPException(status_code=409, detail="setup already completed") from None
+        raise HTTPException(
+            status_code=409, detail=translate("auth.setup_completed", request_locale(request))
+        ) from None
     manager.set_cookie(response, user.id)
     return {"id": user.id, "username": user.username, "role": user.role, "lang": user.lang}

@@ -16,12 +16,15 @@ import uvicorn
 from fastapi import FastAPI, Request
 
 from app.api.auth import router as auth_router
+from app.api.lang import router as lang_router
 from app.api.setup import router as setup_router
+from app.api.users import router as users_router
 from app.config import load_settings
 from app.core.auth import SessionManager, resolve_session_user_id
 from app.core.errors import register_error_handlers
 from app.core.logging import setup_logging
 from app.db.engine import create_session_factory, init_engine
+from app.i18n import create_templates, resolve_locale
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +35,8 @@ def create_app(config_path: str | Path = "config.yaml") -> FastAPI:
     Wires: structured logging, config, SQLite engine (WAL), the session
     stack (task 1.1: SessionManager + session middleware + login/logout),
     the first-run wizard (task 1.2: /setup page + /api/auth/first-run),
-    /healthz, JSON error handlers.
+    the i18n engine (task 1.3: en/uk catalogs + locale middleware +
+    language switchers), /healthz, JSON error handlers.
     """
     setup_logging()
 
@@ -50,6 +54,24 @@ def create_app(config_path: str | Path = "config.yaml") -> FastAPI:
     # server-side session table); the signing key is config.yaml's
     # secret_key (roadmap rule 7).
     app.state.session_store = SessionManager(settings.secret_key)
+    # Task 1.3: the shared template env with the i18n globals (_(),
+    # i18n_catalog_json(), jinja_locale()); every HTML route renders
+    # through it (architecture §14).
+    app.state.templates = create_templates()
+
+    # Task 1.3: resolve the request locale (users.lang → lb_lang cookie →
+    # Accept-Language uk* → en). Registered BEFORE the session middleware
+    # below, which makes the session middleware the OUTERMOST one (Starlette
+    # wraps user middlewares so the last registered runs first) — by the
+    # time the locale is resolved, request.state.session_user_id is set.
+    @app.middleware("http")
+    async def i18n_locale_middleware(request: Request, call_next):
+        db = session_factory()
+        try:
+            request.state.locale = resolve_locale(request, db)
+        finally:
+            db.close()
+        return await call_next(request)
 
     @app.middleware("http")
     async def session_middleware(request: Request, call_next):
@@ -63,6 +85,10 @@ def create_app(config_path: str | Path = "config.yaml") -> FastAPI:
     # Task 1.2: the HTML wizard page. Public while setup_needed; once any
     # user exists it 303-redirects to / (see app/api/setup.py).
     app.include_router(setup_router)
+    # Task 1.3: language preferences (per-user + anonymous cookie) and the
+    # header switchers.
+    app.include_router(users_router)
+    app.include_router(lang_router)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:

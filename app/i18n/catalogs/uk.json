@@ -1,0 +1,21 @@
+{
+  "app.name": "LocalBachelor",
+  "lang.en": "Англійська",
+  "lang.uk": "Українська",
+  "setup.title": "Налаштування LocalBachelor",
+  "setup.intro": "Створіть обліковий запис адміністратора",
+  "setup.username": "Ім'я користувача",
+  "setup.password": "Пароль",
+  "setup.password_hint": "Щонайменше 8 символів",
+  "setup.language": "Мова інтерфейсу",
+  "setup.submit": "Створити обліковий запис і продовжити",
+  "setup.error.username": "Вкажіть ім'я користувача (1–64 символи)",
+  "setup.error.password_too_short": "Пароль має містити щонайменше 8 символів",
+  "setup.error.username_taken": "Таке ім'я користувача вже зайняте",
+  "auth.invalid_credentials": "Невірні дані входу",
+  "auth.setup_completed": "Налаштування вже завершено",
+  "auth.not_signed_in": "Ви не увійшли в систему",
+  "error.internal": "Внутрішня помилка сервера",
+  "error.method_not_allowed": "Метод не дозволено",
+  "error.not_found": "Не знайдено"
+}

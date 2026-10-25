@@ -123,7 +123,7 @@ Tasks marked (post-MVP) may land after.
 - [x] 1.1 Alembic + users table; argon2id; login/logout; session middleware;
       roles.
 - [x] 1.2 First-run wizard: admin account + UI language.
-- [ ] 1.3 i18n engine: en/uk catalogs, `_()` in Jinja, per-user preference,
+- [x] 1.3 i18n engine: en/uk catalogs, `_()` in Jinja, per-user preference,
       switcher.
 - [ ] 1.4 Three-pane layout per mockup; light/dark themes.
 - [ ] 1.5 Admin page: create/deactivate users, reset passwords.

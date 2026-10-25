@@ -12,13 +12,13 @@ Once ANY user exists the wizard is closed, mirroring the JSON twin
 There is no re-openable setup path — see the first-run endpoint
 docstring in ``app/api/auth.py``.
 
-Strings are hardcoded bilingually (en/uk) in ``app/templates/setup.html``
-— the i18n engine lands in task 1.3 and retrofits this template.
+Task 1.3: every string is an i18n catalog lookup (``_()`` in the
+template; the error is passed as a catalog-key suffix,
+``setup.error.<code>``). The page renders in the locale resolved by the
+i18n middleware (architecture §14).
 """
 
 from __future__ import annotations
-
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -28,28 +28,10 @@ from sqlalchemy.orm import Session
 from app.core.auth import SessionManager
 from app.core.passwords import check_password_policy
 from app.db.session import get_db
+from app.i18n import SUPPORTED_LOCALES
 from app.repositories.users import UserRepository
 
 router = APIRouter(tags=["setup"])
-
-_templates = Jinja2Templates(
-    directory=str(Path(__file__).resolve().parent.parent / "templates")
-)
-
-# Bilingual error strings (en, uk) hardcoded until the task 1.3 i18n engine.
-_ERRORS: dict[str, tuple[str, str]] = {
-    "username": (
-        "Username is required (1–64 characters)",
-        "Вкажіть ім'я користувача (1–64 символи)",
-    ),
-    "password_too_short": (
-        "Password must be at least 8 characters",
-        "Пароль має містити щонайменше 8 символів",
-    ),
-    "username_taken": ("Username is already taken", "Таке ім'я користувача вже зайняте"),
-}
-
-_VALID_LANGS = ("en", "uk")
 
 
 def _session_manager(request: Request) -> SessionManager:
@@ -64,15 +46,18 @@ def _render(
     error: str | None = None,
     status_code: int = 200,
 ) -> HTMLResponse:
-    """Render the wizard form; with ``error``, re-render it showing the
-    bilingual error message (and the given status code, 400 for rejected
-    submissions)."""
+    """Render the wizard form in the request's locale.
+
+    With ``error`` (a catalog-key suffix: ``username``,
+    ``password_too_short``, ``username_taken``) the form is re-rendered
+    showing ``setup.error.<code>`` via the ``_()`` global (and the given
+    status code, 400 for rejected submissions).
+    """
     context: dict[str, object] = {"username": username, "lang": lang}
     if error is not None:
-        context["error"] = _ERRORS[error]
-    response = _templates.TemplateResponse(
-        request=request, name="setup.html", context=context
-    )
+        context["error"] = error
+    templates: Jinja2Templates = request.app.state.templates
+    response = templates.TemplateResponse(request=request, name="setup.html", context=context)
     response.status_code = status_code
     return response
 
@@ -101,11 +86,12 @@ def setup_submit(
 ) -> Response:
     """Create the first (admin) account from the wizard form.
 
-    Validation problems re-render the form with a bilingual error (400).
-    Success issues the session cookie and 303-redirects to ``/`` (POST →
-    redirect, so the browser follows with a GET; ``/`` may still 404 until
-    task 1.4). The cookie is set on the RedirectResponse itself — FastAPI
-    discards the implicit response when a route returns a Response object.
+    Validation problems re-render the form with the localized error
+    (400). Success issues the session cookie and 303-redirects to ``/``
+    (POST → redirect, so the browser follows with a GET; ``/`` may still
+    404 until task 1.4). The cookie is set on the RedirectResponse itself
+    — FastAPI discards the implicit response when a route returns a
+    Response object.
     """
     repo = UserRepository(db)
     if repo.count() > 0:
@@ -121,7 +107,7 @@ def setup_submit(
         return _render(
             request, username=username, lang=lang, error="password_too_short", status_code=400
         )
-    if lang not in _VALID_LANGS:
+    if lang not in SUPPORTED_LOCALES:
         # The select offers only en/uk; a tampered value falls back to the
         # default locale (architecture §14) instead of failing the setup.
         lang = "en"

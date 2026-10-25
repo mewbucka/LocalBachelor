@@ -3,10 +3,11 @@
 Fresh-DB flow: GET /api/auth/first-run reports setup_needed; POST creates
 the first account (role=admin, active, users.lang) with an argon2id hash,
 issues the session cookie, and closes the endpoint (second POST → 409).
-The /setup HTML wizard mirrors the same flow: bilingual form, POST creates
-the admin and 303-redirects to / with the session cookie, short passwords
-are rejected with a bilingual error, and the page redirects to / once an
-account exists.
+The /setup HTML wizard mirrors the same flow: the form renders in the
+resolved locale (task 1.3, default en; uk variants are covered in
+tests/test_i18n.py), POST creates the admin and 303-redirects to / with
+the session cookie, short passwords are rejected with a localized error,
+and the page redirects to / once an account exists.
 """
 
 import pytest
@@ -143,7 +144,7 @@ def test_short_password_rejected_and_setup_stays_open(client, app):
 # -- HTML wizard: /setup ----------------------------------------------------
 
 
-def test_setup_page_renders_bilingual_form(client):
+def test_setup_page_renders_in_default_locale(client):
     response = client.get("/setup")
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
@@ -152,10 +153,11 @@ def test_setup_page_renders_bilingual_form(client):
     assert 'name="username"' in html
     assert 'name="password"' in html
     assert 'name="lang"' in html
-    # Hardcoded bilingually: both languages present.
-    assert "Username" in html and "Ім'я користувача" in html
-    assert "Password" in html and "Пароль" in html
-    assert "Англійська" in html and "Українська" in html
+    # Task 1.3: single-locale rendering (default en); the uk strings are
+    # absent — including from the embedded en catalog.
+    assert "Username" in html
+    assert "Ім'я користувача" not in html
+    assert "Українська" not in html
 
 
 def test_setup_page_post_creates_admin_and_redirects(client, app):
@@ -183,8 +185,7 @@ def test_setup_page_post_short_password_rejected(client, app):
         "/setup", data={"username": "boss", "password": "short", "lang": "en"}
     )
     assert response.status_code == 400
-    assert "at least 8 characters" in response.text
-    assert "щонайменше 8 символів" in response.text
+    assert '<p class="error">Password must be at least 8 characters</p>' in response.text
     assert _user_count(app) == 0
 
 

@@ -1,0 +1,79 @@
+{#-
+  Minimal app skeleton (roadmap 1.3). The three-pane body and light/dark
+  themes are task 1.4 — this file stays a bare skeleton with a
+  {% block content %}.
+
+  What it provides (architecture §14):
+  - the resolved request locale on <html lang="...">;
+  - the minimal header: app name + EN/UK language switcher
+    (anonymous: form POSTs /lang, which sets the lb_lang cookie and
+     redirects back; authenticated: buttons call PATCH /api/users/lang
+     — owner-scoped — and reload);
+  - the current catalog embedded ONCE per page as
+    <script type="application/json" id="i18n-catalog">, read by the
+    dependency-free vanilla-JS window._(key) helper, which raises on a
+    missing key (mirroring the Python translate()).
+-#}
+<!DOCTYPE html>
+<html lang="{{ jinja_locale() }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ _("app.name") }}{% endblock %}</title>
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; }
+    .lb-header { display: flex; align-items: center; gap: .75rem; padding: .5rem 1rem; border-bottom: 1px solid #d0d0d0; }
+    .lb-name { font-weight: 700; text-decoration: none; color: inherit; }
+    .lb-lang { margin-left: auto; display: flex; gap: .25rem; }
+    .lb-lang-btn { font: inherit; padding: .15rem .5rem; border: 1px solid #999; border-radius: .25rem; background: #fff; cursor: pointer; }
+    .lb-lang-btn[aria-pressed="true"] { font-weight: 700; border-color: #333; }
+  </style>
+</head>
+<body>
+  {% set locale = jinja_locale() %}
+  <header class="lb-header">
+    <a class="lb-name" href="/">{{ _("app.name") }}</a>
+    <nav class="lb-lang" aria-label="{{ _("setup.language") }}">
+      {% if request.state.session_user_id %}
+      <button type="button" class="lb-lang-btn" data-lang="en" aria-pressed="{{ 'true' if locale == 'en' else 'false' }}">EN</button>
+      <button type="button" class="lb-lang-btn" data-lang="uk" aria-pressed="{{ 'true' if locale == 'uk' else 'false' }}">UK</button>
+      <script>
+        document.querySelectorAll(".lb-lang-btn").forEach(function (btn) {
+          btn.addEventListener("click", function () {
+            fetch("/api/users/lang", {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ lang: btn.dataset.lang })
+            }).then(function (res) {
+              if (res.ok) { window.location.reload(); }
+            });
+          });
+        });
+      </script>
+      {% else %}
+      <form method="post" action="/lang" style="display: contents;">
+        <button type="submit" name="lang" value="en" class="lb-lang-btn" aria-pressed="{{ 'true' if locale == 'en' else 'false' }}">EN</button>
+        <button type="submit" name="lang" value="uk" class="lb-lang-btn" aria-pressed="{{ 'true' if locale == 'uk' else 'false' }}">UK</button>
+      </form>
+      {% endif %}
+    </nav>
+  </header>
+  <script type="application/json" id="i18n-catalog">{{ i18n_catalog_json()|safe }}</script>
+  <script>
+    (function () {
+      var node = document.getElementById("i18n-catalog");
+      var catalog = node ? JSON.parse(node.textContent) : {};
+      window._ = function (key) {
+        var value = catalog[key];
+        if (value === undefined) {
+          throw new Error("i18n: missing key " + key);
+        }
+        return value;
+      };
+    })();
+  </script>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

@@ -20,6 +20,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.i18n import request_locale, translate
+
 logger = logging.getLogger(__name__)
 
 CORRELATION_HEADER = "X-Request-ID"
@@ -61,6 +63,14 @@ async def http_exception_handler(request: Request, exc: Exception) -> JSONRespon
     cid = correlation_id_for(request)
     code = _ERROR_CODES.get(exc.status_code, "http_error")
     detail = exc.detail if isinstance(exc.detail, str) else str(jsonable_encoder(exc.detail))
+    # Localize Starlette's built-in default details ("Not Found",
+    # "Method Not Allowed"); details raised by app code are already
+    # localized at the raise site (roadmap rule 8: no hardcoded
+    # user-visible strings).
+    builtin = {404: "error.not_found", 405: "error.method_not_allowed"}
+    key = builtin.get(exc.status_code)
+    if key is not None and detail in {"Not Found", "Method Not Allowed"}:
+        detail = translate(key, request_locale(request))
     log = logger.error if exc.status_code >= 500 else logger.info
     log(
         "http error",
@@ -94,7 +104,9 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
         "unhandled exception",
         extra={"correlation_id": cid, "path": request.url.path, "method": request.method},
     )
-    return _response(request, cid, 500, "internal_error", "Internal server error")
+    return _response(
+        request, cid, 500, "internal_error", translate("error.internal", request_locale(request))
+    )
 
 
 def register_error_handlers(app: FastAPI) -> None:

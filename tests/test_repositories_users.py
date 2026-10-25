@@ -147,6 +147,37 @@ def test_duplicate_username_rejected(repo, users):
         repo.create("alice", "other-pass", owner_id=users["admin"].id)
 
 
+# -- set_lang (architecture §14: self-service, no admin bypass) ---------------
+
+
+def test_user_can_change_own_lang(repo, users, db_session):
+    assert repo.set_lang(users["alice"].id, "uk", owner_id=users["alice"].id)
+    db_session.commit()
+    assert repo.get_by_username("alice").lang == "uk"
+
+
+def test_user_cannot_change_others_lang(repo, users, db_session):
+    assert repo.set_lang(users["bob"].id, "uk", owner_id=users["alice"].id) is False
+    db_session.commit()
+    assert repo.get_by_username("bob").lang == "en"
+
+
+def test_admin_cannot_change_others_lang(repo, users, db_session):
+    # No admin bypass: a language preference is personal, not administrative.
+    assert repo.set_lang(users["alice"].id, "uk", owner_id=users["admin"].id) is False
+    db_session.commit()
+    assert repo.get_by_username("alice").lang == "en"
+
+
+def test_set_lang_invalid_lang_rejected(repo, users):
+    with pytest.raises(ValueError):
+        repo.set_lang(users["alice"].id, "fr", owner_id=users["alice"].id)
+
+
+def test_set_lang_missing_target_returns_false(repo, users):
+    assert repo.set_lang(999999, "uk", owner_id=999999) is False
+
+
 def test_invalid_role_rejected(repo, users):
     with pytest.raises(ValueError):
         repo.create("x", "y", role="superuser", owner_id=users["admin"].id)

@@ -1,0 +1,21 @@
+{
+  "app.name": "LocalBachelor",
+  "lang.en": "English",
+  "lang.uk": "Ukrainian",
+  "setup.title": "LocalBachelor setup",
+  "setup.intro": "Create the administrator account",
+  "setup.username": "Username",
+  "setup.password": "Password",
+  "setup.password_hint": "At least 8 characters",
+  "setup.language": "Interface language",
+  "setup.submit": "Create account and continue",
+  "setup.error.username": "Username is required (1–64 characters)",
+  "setup.error.password_too_short": "Password must be at least 8 characters",
+  "setup.error.username_taken": "Username is already taken",
+  "auth.invalid_credentials": "Invalid credentials",
+  "auth.setup_completed": "Setup already completed",
+  "auth.not_signed_in": "Not signed in",
+  "error.internal": "Internal server error",
+  "error.method_not_allowed": "Method not allowed",
+  "error.not_found": "Not found"
+}
