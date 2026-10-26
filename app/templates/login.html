@@ -1,0 +1,25 @@
+{#-
+  The login page (roadmap 1.4): the localized sign-in form inside the
+  three-pane shell. The form posts to POST /api/auth/login with a CSRF
+  token (task 1.4); bad credentials re-render the page showing the
+  localized error (the attempted username is pre-filled), and a successful
+  login 303-redirects to / with the session cookie.
+-#}
+{% extends "base.html" %}
+
+{% block title %}{{ _("login.title") }}{% endblock %}
+
+{% block content %}
+<div class="lb-form">
+  <h1>{{ _("login.title") }}</h1>
+  {% if error %}<p class="error">{{ _("auth.invalid_credentials") }}</p>{% endif %}
+  <form method="post" action="/api/auth/login">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label for="username">{{ _("login.username") }}</label>
+    <input id="username" name="username" maxlength="64" required value="{{ username|default('') }}">
+    <label for="password">{{ _("login.password") }}</label>
+    <input id="password" name="password" type="password" required>
+    <button type="submit">{{ _("login.submit") }}</button>
+  </form>
+</div>
+{% endblock %}

@@ -12,15 +12,7 @@
 {% block title %}{{ _("setup.title") }}{% endblock %}
 
 {% block content %}
-<style>
-  .lb-setup { max-width: 26rem; margin: 4rem auto; padding: 0 1rem; }
-  .lb-setup label { display: block; margin: 1rem 0 .25rem; font-weight: 600; }
-  .lb-setup input, .lb-setup select { font: inherit; padding: .5rem; width: 100%; box-sizing: border-box; }
-  .lb-setup .hint { color: #666; font-size: .9rem; }
-  .lb-setup .error { color: #b00020; }
-  .lb-setup button { margin-top: 1.5rem; font: inherit; padding: .6rem 1rem; cursor: pointer; }
-</style>
-<div class="lb-setup">
+<div class="lb-form">
   <h1>{{ _("setup.title") }}</h1>
   <p>{{ _("setup.intro") }}</p>
   {% if error %}<p class="error">{{ _("setup.error." ~ error) }}</p>{% endif %}

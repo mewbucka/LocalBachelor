@@ -125,7 +125,8 @@ Tasks marked (post-MVP) may land after.
 - [x] 1.2 First-run wizard: admin account + UI language.
 - [x] 1.3 i18n engine: en/uk catalogs, `_()` in Jinja, per-user preference,
       switcher.
-- [ ] 1.4 Three-pane layout per mockup; light/dark themes.
+- [x] 1.4 Three-pane layout per mockup; light/dark themes; minimal settings
+      store; login/logout UI; full test coverage.
 - [ ] 1.5 Admin page: create/deactivate users, reset passwords.
 - [ ] 1.6 Security baseline: cookie flags, CSRF middleware, bind default
       127.0.0.1, LAN opt-in warning.

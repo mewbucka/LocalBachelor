@@ -1,63 +1,137 @@
 {#-
-  Minimal app skeleton (roadmap 1.3). The three-pane body and light/dark
-  themes are task 1.4 — this file stays a bare skeleton with a
-  {% block content %}.
+  Three-pane app shell (roadmap 1.4) + light/dark themes.
 
-  What it provides (architecture §14):
-  - the resolved request locale on <html lang="...">;
-  - the minimal header: app name + EN/UK language switcher
-    (anonymous: form POSTs /lang, which sets the lb_lang cookie and
-     redirects back; authenticated: buttons call PATCH /api/users/lang
-     — owner-scoped — and reload);
+  What it provides:
+  - the resolved request locale on <html lang="..."> and the resolved
+    theme on <html data-theme="..."> — both server-rendered per request
+    (app/i18n/engine.py, app/core/theme.py); no flash-of-wrong-theme script;
+  - a single stylesheet link (/static/style.css); every color comes from the
+    theme variables defined there (:root = light, [data-theme="dark"] =
+    dark). Templates carry NO inline <style> blocks (roadmap 1.4);
+  - the header: app name + theme toggle + EN/UK language switcher +
+    sign-out (signed in) or sign-in link (anonymous);
+  - the three-pane body (roadmap mockup): a left navigation sidebar, the
+    main content pane ({% block content %}), and a right context pane
+    ({% block context %});
   - the current catalog embedded ONCE per page as
     <script type="application/json" id="i18n-catalog">, read by the
-    dependency-free vanilla-JS window._(key) helper, which raises on a
-    missing key (mirroring the Python translate()).
+    dependency-free vanilla-JS window._(key) helper;
+  - a CSRF token (csrf_token()) for the HTML forms that POST to the JSON
+    auth endpoints (task 1.4; the full CSRF middleware is task 1.6).
+
+  home.html (the bare shell + empty states) and login.html (the sign-in
+  form in the main pane) extend this; setup.html extends it too (the
+  first-run wizard form).
 -#}
 <!DOCTYPE html>
-<html lang="{{ jinja_locale() }}">
+<html lang="{{ jinja_locale() }}" data-theme="{{ request.state.theme }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}{{ _("app.name") }}{% endblock %}</title>
-  <style>
-    body { margin: 0; font-family: system-ui, sans-serif; }
-    .lb-header { display: flex; align-items: center; gap: .75rem; padding: .5rem 1rem; border-bottom: 1px solid #d0d0d0; }
-    .lb-name { font-weight: 700; text-decoration: none; color: inherit; }
-    .lb-lang { margin-left: auto; display: flex; gap: .25rem; }
-    .lb-lang-btn { font: inherit; padding: .15rem .5rem; border: 1px solid #999; border-radius: .25rem; background: #fff; cursor: pointer; }
-    .lb-lang-btn[aria-pressed="true"] { font-weight: 700; border-color: #333; }
-  </style>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
   {% set locale = jinja_locale() %}
   <header class="lb-header">
     <a class="lb-name" href="/">{{ _("app.name") }}</a>
-    <nav class="lb-lang" aria-label="{{ _("setup.language") }}">
+    <div class="lb-header-actions">
+      {# theme toggle: signed in -> PUT /api/settings then reload;
+         anonymous -> form POST /theme (sets the lb_theme cookie) #}
       {% if request.state.session_user_id %}
-      <button type="button" class="lb-lang-btn" data-lang="en" aria-pressed="{{ 'true' if locale == 'en' else 'false' }}">EN</button>
-      <button type="button" class="lb-lang-btn" data-lang="uk" aria-pressed="{{ 'true' if locale == 'uk' else 'false' }}">UK</button>
+      <button type="button" class="lb-toggle-btn" id="lb-theme-toggle"
+              data-target="{{ 'dark' if request.state.theme == 'light' else 'light' }}"
+              aria-label="{{ _('theme.toggle') }}"
+              aria-pressed="{{ 'true' if request.state.theme == 'dark' else 'false' }}">
+        {{ _("theme." ~ ('dark' if request.state.theme == 'light' else 'light')) }}
+      </button>
       <script>
-        document.querySelectorAll(".lb-lang-btn").forEach(function (btn) {
+        (function () {
+          var btn = document.getElementById("lb-theme-toggle");
+          if (!btn) return;
           btn.addEventListener("click", function () {
-            fetch("/api/users/lang", {
-              method: "PATCH",
+            fetch("/api/settings", {
+              method: "PUT",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ lang: btn.dataset.lang })
+              body: JSON.stringify({ theme: btn.dataset.target })
             }).then(function (res) {
               if (res.ok) { window.location.reload(); }
             });
           });
-        });
+        })();
       </script>
       {% else %}
-      <form method="post" action="/lang" style="display: contents;">
-        <button type="submit" name="lang" value="en" class="lb-lang-btn" aria-pressed="{{ 'true' if locale == 'en' else 'false' }}">EN</button>
-        <button type="submit" name="lang" value="uk" class="lb-lang-btn" aria-pressed="{{ 'true' if locale == 'uk' else 'false' }}">UK</button>
+      <form class="lb-inline-form" method="post" action="/theme">
+        <button type="submit" class="lb-toggle-btn"
+                name="theme" value="{{ 'dark' if request.state.theme == 'light' else 'light' }}"
+                aria-label="{{ _('theme.toggle') }}"
+                aria-pressed="{{ 'true' if request.state.theme == 'dark' else 'false' }}">
+          {{ _("theme." ~ ('dark' if request.state.theme == 'light' else 'light')) }}
+        </button>
       </form>
       {% endif %}
-    </nav>
+      {# language switcher (task 1.3) #}
+      <nav class="lb-lang" aria-label="{{ _('setup.language') }}">
+        {% if request.state.session_user_id %}
+        <button type="button" class="lb-toggle-btn" data-lang="en" aria-pressed="{{ 'true' if locale == 'en' else 'false' }}">EN</button>
+        <button type="button" class="lb-toggle-btn" data-lang="uk" aria-pressed="{{ 'true' if locale == 'uk' else 'false' }}">UK</button>
+        <script>
+          document.querySelectorAll(".lb-lang button").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+              fetch("/api/users/lang", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ lang: btn.dataset.lang })
+              }).then(function (res) {
+                if (res.ok) { window.location.reload(); }
+              });
+            });
+          });
+        </script>
+        {% else %}
+        <form class="lb-inline-form" method="post" action="/lang">
+          <button type="submit" class="lb-toggle-btn" name="lang" value="en" aria-pressed="{{ 'true' if locale == 'en' else 'false' }}">EN</button>
+          <button type="submit" class="lb-toggle-btn" name="lang" value="uk" aria-pressed="{{ 'true' if locale == 'uk' else 'false' }}">UK</button>
+        </form>
+        {% endif %}
+      </nav>
+      {% if request.state.session_user_id %}
+      <form class="lb-inline-form" method="post" action="/api/auth/logout">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="lb-toggle-btn">{{ _('auth.logout') }}</button>
+      </form>
+      {% else %}
+      <a class="lb-toggle-btn" href="/login">{{ _('auth.login') }}</a>
+      {% endif %}
+    </div>
   </header>
+
+  <div class="lb-shell">
+    <aside class="lb-sidebar">
+      <nav class="lb-nav" aria-label="{{ _('nav.label.projects') }}">
+        <span class="lb-nav-item lb-nav-disabled">{{ _('nav.label.projects') }}</span>
+        <span class="lb-nav-item lb-nav-disabled">{{ _('nav.label.notes') }}</span>
+        <span class="lb-nav-item lb-nav-disabled">{{ _('nav.label.settings') }}</span>
+        <span class="lb-nav-hint">{{ _('nav.label.coming_soon') }}</span>
+      </nav>
+    </aside>
+    <main class="lb-main">
+      {% block content %}
+      <div class="lb-empty">
+        <h2>{{ _('home.empty_title') }}</h2>
+        <p>{{ _('home.empty_hint') }}</p>
+      </div>
+      {% endblock %}
+    </main>
+    <aside class="lb-context">
+      {% block context %}
+      <div class="lb-empty">
+        <h2>{{ _('context.no_conversation') }}</h2>
+      </div>
+      {% endblock %}
+    </aside>
+  </div>
+
   <script type="application/json" id="i18n-catalog">{{ i18n_catalog_json()|safe }}</script>
   <script>
     (function () {
@@ -72,8 +146,5 @@
       };
     })();
   </script>
-  <main>
-    {% block content %}{% endblock %}
-  </main>
 </body>
 </html>

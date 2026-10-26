@@ -218,9 +218,10 @@ def test_healthz_stays_public_on_fresh_instance(client):
     assert response.json() == {"status": "ok"}
 
 
-def test_root_still_404_until_task_1_4(client):
-    # Documented expectation: the wizard redirects to /, which has no route
-    # until the three-pane layout lands in task 1.4.
-    response = client.get("/")
-    assert response.status_code == 404
-    assert response.json()["error"] == "not_found"
+def test_root_redirects_to_setup_when_fresh(client):
+    # Task 1.4: the root route now exists. On a fresh (no-users) instance an
+    # anonymous visitor is sent to the /setup wizard — the only entry point
+    # before setup, since a login form could never succeed there.
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/setup"

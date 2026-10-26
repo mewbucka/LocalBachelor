@@ -24,6 +24,9 @@ Surfaces:
   per page as ``<script type="application/json" id="i18n-catalog">`` for
   the tiny dependency-free vanilla-JS ``window._(key)`` helper in
   ``templates/base.html``.
+- Jinja global ``csrf_token()`` (task 1.4) — a fresh stateless signed CSRF
+  token per render, for the HTML forms that POST to the JSON auth endpoints
+  (the header logout form and the login form).
 """
 
 from __future__ import annotations
@@ -40,6 +43,7 @@ from sqlalchemy.orm import Session
 from starlette.templating import Jinja2Templates
 
 from app.core.auth import resolve_session_user_id
+from app.core.csrf import jinja_csrf_token
 from app.models import User
 
 DEFAULT_LOCALE = "en"
@@ -201,6 +205,9 @@ def create_templates() -> Jinja2Templates:
     templates.env.globals["_"] = jinja_translate
     templates.env.globals["i18n_catalog_json"] = jinja_catalog_json
     templates.env.globals["jinja_locale"] = jinja_locale
+    # Task 1.4: the stateless signed CSRF token for the HTML forms (the
+    # header logout form in base.html, the login form in login.html).
+    templates.env.globals["csrf_token"] = jinja_csrf_token
     return templates
 
 

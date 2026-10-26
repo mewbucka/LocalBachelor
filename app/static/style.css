@@ -1,0 +1,232 @@
+/* LocalBachelor — the single stylesheet (roadmap 1.4; locked stack:
+   single CSS with theme variables, NO build step).
+   Templates must not carry inline <style> blocks, and every color in
+   the app goes through a theme variable: :root defines the light theme,
+   [data-theme="dark"] overrides the same set on
+   <html data-theme="dark">. The attribute is server-rendered per request
+   by app/core/theme.py — no flash-of-wrong-theme script. */
+
+:root {
+  --lb-bg: #ffffff;
+  --lb-bg-alt: #f2f4f7;
+  --lb-surface: #ffffff;
+  --lb-fg: #1c1e21;
+  --lb-fg-muted: #5c6470;
+  --lb-border: #d0d4da;
+  --lb-accent: #2f6fed;
+  --lb-accent-fg: #ffffff;
+  --lb-danger: #b00020;
+}
+
+[data-theme="dark"] {
+  --lb-bg: #14161a;
+  --lb-bg-alt: #1a1d23;
+  --lb-surface: #1a1d23;
+  --lb-fg: #e8eaed;
+  --lb-fg-muted: #9aa1ac;
+  --lb-border: #343a45;
+  --lb-accent: #6ea3ff;
+  --lb-accent-fg: #0d1015;
+  --lb-danger: #ff5c74;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--lb-bg);
+  color: var(--lb-fg);
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+
+/* -- header ----------------------------------------------------------------- */
+
+.lb-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--lb-border);
+  background: var(--lb-surface);
+}
+
+.lb-name {
+  font-weight: 700;
+  text-decoration: none;
+  color: inherit;
+}
+
+.lb-header-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.lb-inline-form {
+  display: contents;
+}
+
+.lb-toggle-btn {
+  font: inherit;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--lb-border);
+  border-radius: 0.25rem;
+  background: var(--lb-surface);
+  color: var(--lb-fg);
+  cursor: pointer;
+}
+
+a.lb-toggle-btn {
+  display: inline-block;
+  line-height: 1.4;
+  text-decoration: none;
+}
+
+.lb-toggle-btn[aria-pressed="true"] {
+  font-weight: 700;
+  border-color: var(--lb-accent);
+}
+
+.lb-lang {
+  display: flex;
+  gap: 0.25rem;
+}
+
+/* -- three-pane shell (roadmap 1.4 mockup) ---------------------------------- */
+
+.lb-shell {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(10rem, 16rem) minmax(0, 1fr) minmax(14rem, 20rem);
+  grid-template-areas: "sidebar main context";
+}
+
+.lb-sidebar {
+  grid-area: sidebar;
+  background: var(--lb-bg-alt);
+  border-right: 1px solid var(--lb-border);
+  padding: 1rem;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.lb-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.lb-nav-item {
+  display: block;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.25rem;
+}
+
+.lb-nav-disabled {
+  color: var(--lb-fg-muted);
+  cursor: not-allowed;
+}
+
+.lb-nav-hint {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--lb-fg-muted);
+}
+
+.lb-main {
+  grid-area: main;
+  padding: 1.5rem;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.lb-context {
+  grid-area: context;
+  background: var(--lb-bg-alt);
+  border-left: 1px solid var(--lb-border);
+  padding: 1rem;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* Narrow widths: stack the right context pane BELOW the main pane. */
+@media (max-width: 60em) {
+  .lb-shell {
+    grid-template-columns: minmax(9rem, 12rem) minmax(0, 1fr);
+    grid-template-areas:
+      "sidebar main"
+      "sidebar context";
+  }
+}
+
+/* -- empty states ------------------------------------------------------------- */
+
+.lb-empty {
+  border: 1px dashed var(--lb-border);
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--lb-fg-muted);
+}
+
+.lb-empty h2 {
+  margin: 0 0 0.5rem;
+  color: var(--lb-fg);
+}
+
+/* -- forms (login page + setup wizard) ----------------------------------------- */
+
+.lb-form {
+  max-width: 26rem;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+.lb-form h1 {
+  font-size: 1.4rem;
+  margin: 0 0 0.5rem;
+}
+
+.lb-form label {
+  display: block;
+  margin: 1rem 0 0.25rem;
+  font-weight: 600;
+}
+
+.lb-form input,
+.lb-form select {
+  font: inherit;
+  padding: 0.5rem;
+  width: 100%;
+  border: 1px solid var(--lb-border);
+  border-radius: 0.25rem;
+  background: var(--lb-surface);
+  color: var(--lb-fg);
+}
+
+.lb-form .hint {
+  color: var(--lb-fg-muted);
+  font-size: 0.9rem;
+}
+
+.lb-form .error {
+  color: var(--lb-danger);
+}
+
+.lb-form button[type="submit"] {
+  margin-top: 1.5rem;
+  font: inherit;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--lb-accent);
+  border-radius: 0.25rem;
+  background: var(--lb-accent);
+  color: var(--lb-accent-fg);
+  cursor: pointer;
+}

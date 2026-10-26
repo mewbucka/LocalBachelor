@@ -1,0 +1,10 @@
+{#-
+  The home page (roadmap 1.4): the bare three-pane shell with localized
+  empty states. The projects/conversation UI lands in later phases, so the
+  main pane shows the welcome empty state and the context pane the
+  "no active conversation" state (both base.html's default blocks); only
+  the <title> is overridden here.
+-#}
+{% extends "base.html" %}
+
+{% block title %}{{ _("app.name") }}{% endblock %}
