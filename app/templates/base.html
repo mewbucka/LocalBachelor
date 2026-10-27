@@ -113,6 +113,10 @@
         <span class="lb-nav-item lb-nav-disabled">{{ _('nav.label.notes') }}</span>
         <span class="lb-nav-item lb-nav-disabled">{{ _('nav.label.settings') }}</span>
         <span class="lb-nav-hint">{{ _('nav.label.coming_soon') }}</span>
+        {# admin user management (task 1.5): shown only to active admins #}
+        {% if is_admin|default(false) %}
+        <a class="lb-nav-item lb-nav-link" href="/admin">{{ _('nav.label.admin') }}</a>
+        {% endif %}
       </nav>
     </aside>
     <main class="lb-main">

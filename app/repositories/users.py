@@ -23,6 +23,20 @@ _VALID_ROLES = ("admin", "user")
 _VALID_LANGS = ("en", "uk")
 
 
+class AdminGuardViolation(Exception):
+    """An administrative action would violate an admin-safety invariant.
+
+    ``code`` is a stable machine-readable identifier the API layer maps to a
+    localized message (e.g. ``"last_admin"`` -> ``admin.error.last_admin``).
+    Raising (rather than returning False) keeps the guard distinct from the
+    "no-op" outcomes so the API can answer 409 Conflict.
+    """
+
+    def __init__(self, code: str) -> None:
+        super().__init__(code)
+        self.code = code
+
+
 class UserRepository:
     """User reads/writes scoped to the acting user (or admin scope)."""
 
@@ -169,6 +183,15 @@ class UserRepository:
         that user's data stay intact, but ``authenticate`` rejects the
         account immediately. Only an active admin may change the flag (a
         user cannot self-deactivate).
+
+        Safety guard (task 1.5): the last remaining ACTIVE admin may never
+        be deactivated — doing so would leave the instance with no one able
+        to administer it (an admin who hands over would be locked out with
+        no successor, and nobody could ever re-enable the account). An admin
+        may deactivate THEMSELVES only when at least one other active admin
+        remains. Reactivation is never blocked: restoring an account can
+        never orphan the instance. Returns False (no change) when the target
+        is missing or the actor is not an active admin.
         """
         row = self._session.get(User, user_id)
         if row is None:
@@ -176,6 +199,19 @@ class UserRepository:
         actor = self._session.get(User, owner_id)
         if actor is None or not actor.active or actor.role != "admin":
             return False
+        if not active and row.active and row.role == "admin" and self._active_admin_count() == 1:
+            raise AdminGuardViolation("last_admin")
         row.active = active
         self._session.flush()
         return True
+
+    def _active_admin_count(self) -> int:
+        """Number of active admin accounts (the admin-safety invariant)."""
+        return (
+            self._session.scalar(
+                select(func.count()).select_from(User).where(
+                    User.role == "admin", User.active.is_(True)
+                )
+            )
+            or 0
+        )

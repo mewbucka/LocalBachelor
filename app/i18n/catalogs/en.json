@@ -35,5 +35,22 @@
   "auth.login": "Sign in",
   "auth.logout": "Sign out",
   "auth.csrf_invalid": "Session expired, please try again",
-  "settings.no_settings": "No settings provided"
+  "settings.no_settings": "No settings provided",
+  "nav.label.admin": "Admin",
+  "auth.forbidden": "You do not have permission to view this page",
+  "admin.title": "User management",
+  "admin.role": "Role",
+  "admin.role.admin": "Administrator",
+  "admin.role.user": "User",
+  "admin.lang": "Language",
+  "admin.status": "Status",
+  "admin.created_at": "Created",
+  "admin.active": "Active",
+  "admin.inactive": "Inactive",
+  "admin.add": "Add a user",
+  "admin.add_user": "Create user",
+  "admin.deactivate": "Deactivate",
+  "admin.activate": "Activate",
+  "admin.reset_password": "Reset password",
+  "admin.error.last_admin": "Cannot deactivate the last active administrator"
 }

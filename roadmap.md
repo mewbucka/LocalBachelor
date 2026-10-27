@@ -127,7 +127,7 @@ Tasks marked (post-MVP) may land after.
       switcher.
 - [x] 1.4 Three-pane layout per mockup; light/dark themes; minimal settings
       store; login/logout UI; full test coverage.
-- [ ] 1.5 Admin page: create/deactivate users, reset passwords.
+- [x] 1.5 Admin page: create/deactivate users, reset passwords.
 - [ ] 1.6 Security baseline: cookie flags, CSRF middleware, bind default
       127.0.0.1, LAN opt-in warning.
 - [ ] 1.7 Tenant isolation: ownership filters in all repositories; job

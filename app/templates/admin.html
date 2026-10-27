@@ -1,0 +1,95 @@
+{#-
+  The admin user-management page (roadmap 1.5, architecture sections 11, 12).
+
+  Administrative scope only: the account table (username, role, language,
+  status, created), a create form, and per-row deactivate/reactivate +
+  reset-password controls. Every string is a catalog lookup (_()); the forms
+  post to the /api/admin/users dual-path endpoints with a CSRF token
+  (app/api/admin.py) and 303-redirect back here on success.
+-#}
+{% extends "base.html" %}
+
+{% block title %}{{ _("admin.title") }}{% endblock %}
+
+{% block content %}
+<div class="lb-admin">
+  <h1>{{ _("admin.title") }}</h1>
+
+  {% if error %}
+  {% if error == "last_admin" %}
+  <p class="lb-admin-error">{{ _("admin.error.last_admin") }}</p>
+  {% else %}
+  <p class="lb-admin-error">{{ _("setup.error." ~ error) }}</p>
+  {% endif %}
+  {% endif %}
+
+  {# create form: POST /api/admin/users (form path, CSRF) -> 303 /admin #}
+  <section class="lb-admin-create">
+    <h2>{{ _("admin.add") }}</h2>
+    <form method="post" action="/api/admin/users" class="lb-admin-create-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="new-username">{{ _("setup.username") }}</label>
+      <input id="new-username" name="username" maxlength="64" required>
+      <label for="new-password">{{ _("setup.password") }}</label>
+      <input id="new-password" name="password" type="password" required>
+      <p class="lb-admin-hint">{{ _("setup.password_hint") }}</p>
+      <label for="new-role">{{ _("admin.role") }}</label>
+      <select id="new-role" name="role">
+        <option value="user">{{ _("admin.role.user") }}</option>
+        <option value="admin">{{ _("admin.role.admin") }}</option>
+      </select>
+      <label for="new-lang">{{ _("setup.language") }}</label>
+      <select id="new-lang" name="lang">
+        <option value="en">{{ _("lang.en") }}</option>
+        <option value="uk">{{ _("lang.uk") }}</option>
+      </select>
+      <button type="submit">{{ _("admin.add_user") }}</button>
+    </form>
+  </section>
+
+  {# account table: per-row deactivate/reactivate + reset-password controls #}
+  <table class="lb-admin-table">
+    <thead>
+      <tr>
+        <th>{{ _("setup.username") }}</th>
+        <th>{{ _("admin.role") }}</th>
+        <th>{{ _("admin.lang") }}</th>
+        <th>{{ _("admin.status") }}</th>
+        <th>{{ _("admin.created_at") }}</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr class="lb-admin-row{% if not u.active %} lb-admin-row-inactive{% endif %}">
+        <td>{{ u.username }}</td>
+        <td>{{ _("admin.role." ~ u.role) }}</td>
+        <td>{{ _("lang." ~ u.lang) }}</td>
+        <td>{{ _("admin.active") if u.active else _("admin.inactive") }}</td>
+        <td>{{ u.created_at }}</td>
+        <td class="lb-admin-row-actions">
+          <form method="post" action="/api/admin/users/{{ u.id }}" class="lb-admin-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {% if u.active %}
+            <input type="hidden" name="active" value="0">
+            <button type="submit" class="lb-btn lb-btn-danger">{{ _("admin.deactivate") }}</button>
+            {% else %}
+            <input type="hidden" name="active" value="1">
+            <button type="submit" class="lb-btn">{{ _("admin.activate") }}</button>
+            {% endif %}
+          </form>
+          <details class="lb-admin-reset">
+            <summary>{{ _("admin.reset_password") }}</summary>
+            <form method="post" action="/api/admin/users/{{ u.id }}" class="lb-admin-inline">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <input type="password" name="password" minlength="8" required>
+              <button type="submit" class="lb-btn">{{ _("admin.reset_password") }}</button>
+            </form>
+          </details>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

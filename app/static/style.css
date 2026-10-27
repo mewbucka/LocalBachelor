@@ -230,3 +230,140 @@ a.lb-toggle-btn {
   color: var(--lb-accent-fg);
   cursor: pointer;
 }
+
+/* -- admin panel (roadmap 1.5) ---------------------------------------------- */
+
+.lb-admin {
+  max-width: 60rem;
+  margin: 0 auto;
+}
+
+.lb-admin h1 {
+  font-size: 1.4rem;
+  margin: 0 0 1rem;
+}
+
+.lb-admin h2 {
+  font-size: 1.1rem;
+  margin: 1.5rem 0 0.5rem;
+}
+
+.lb-admin-error {
+  margin: 0 0 1rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--lb-danger);
+  border-radius: 0.25rem;
+  background: var(--lb-bg-alt);
+  color: var(--lb-danger);
+}
+
+.lb-admin-create-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem 1rem;
+  max-width: 34rem;
+}
+
+.lb-admin-create-form label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-weight: 600;
+}
+
+.lb-admin-create-form input,
+.lb-admin-create-form select {
+  font: inherit;
+  padding: 0.5rem;
+  width: 100%;
+  border: 1px solid var(--lb-border);
+  border-radius: 0.25rem;
+  background: var(--lb-surface);
+  color: var(--lb-fg);
+}
+
+.lb-admin-hint {
+  margin: 0;
+  grid-column: 2;
+  color: var(--lb-fg-muted);
+  font-size: 0.9rem;
+}
+
+.lb-admin-create-form button[type="submit"] {
+  grid-column: 1 / -1;
+  justify-self: start;
+  margin-top: 0.5rem;
+  font: inherit;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--lb-accent);
+  border-radius: 0.25rem;
+  background: var(--lb-accent);
+  color: var(--lb-accent-fg);
+  cursor: pointer;
+}
+
+.lb-admin-table {
+  width: 100%;
+  margin-top: 0.5rem;
+  border-collapse: collapse;
+}
+
+.lb-admin-table th,
+.lb-admin-table td {
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--lb-border);
+}
+
+.lb-admin-table th {
+  color: var(--lb-fg-muted);
+  font-size: 0.85rem;
+}
+
+.lb-admin-row-inactive {
+  color: var(--lb-fg-muted);
+}
+
+.lb-admin-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.lb-admin-inline {
+  display: contents;
+}
+
+.lb-btn {
+  font: inherit;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--lb-border);
+  border-radius: 0.25rem;
+  background: var(--lb-surface);
+  color: var(--lb-fg);
+  cursor: pointer;
+}
+
+.lb-btn-danger {
+  border-color: var(--lb-danger);
+  color: var(--lb-danger);
+}
+
+.lb-admin-reset {
+  display: inline-block;
+}
+
+.lb-admin-reset summary {
+  cursor: pointer;
+  color: var(--lb-accent);
+}
+
+.lb-admin-reset input {
+  font: inherit;
+  padding: 0.25rem 0.5rem;
+  margin: 0.25rem 0.5rem 0.25rem 0;
+  border: 1px solid var(--lb-border);
+  border-radius: 0.25rem;
+  background: var(--lb-surface);
+  color: var(--lb-fg);
+}

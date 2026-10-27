@@ -9,7 +9,7 @@ account) but do NOT read other users' tenant data.
 
 import pytest
 
-from app.repositories.users import UserRepository
+from app.repositories.users import AdminGuardViolation, UserRepository
 
 
 @pytest.fixture()
@@ -118,6 +118,64 @@ def test_admin_can_deactivate_user(repo, users, db_session):
     assert repo.set_active(users["bob"].id, False, owner_id=users["admin"].id)
     db_session.commit()
     assert repo.authenticate("bob", "bob-pass") is None
+
+
+# -- last-active-admin guard (task 1.5) --------------------------------------
+
+
+def test_admin_cannot_deactivate_last_active_admin(repo, users, db_session):
+    # admin1 is the only active admin; deactivating it would orphan the
+    # instance, so the guard raises (distinct from a no-op False).
+    with pytest.raises(AdminGuardViolation) as excinfo:
+        repo.set_active(users["admin"].id, False, owner_id=users["admin"].id)
+    assert excinfo.value.code == "last_admin"
+    db_session.commit()
+    # The flag is unchanged: the admin can still authenticate.
+    assert repo.authenticate("admin1", "admin-pass") is not None
+
+
+def test_new_sole_admin_cannot_self_deactivate(repo, db_session, users):
+    other = repo.create("admin2", "admin2-pass", role="admin")
+    db_session.commit()
+    # Two active admins: deactivating one is fine (a successor remains).
+    assert repo.set_active(users["admin"].id, False, owner_id=other.id)
+    db_session.commit()
+    # admin1 is now inactive; admin2 is the sole active admin. Deactivating
+    # admin2 (by anyone) would leave zero active admins -> blocked.
+    with pytest.raises(AdminGuardViolation):
+        repo.set_active(other.id, False, owner_id=other.id)
+    db_session.commit()
+    assert repo.authenticate("admin2", "admin2-pass") is not None  # still active
+
+
+def test_admin_can_deactivate_self_when_other_admin_remains(repo, db_session, users):
+    repo.create("admin2", "admin2-pass", role="admin")
+    db_session.commit()
+    # Handover: the outgoing admin deactivates themself (a successor exists).
+    assert repo.set_active(users["admin"].id, False, owner_id=users["admin"].id)
+    db_session.commit()
+    assert repo.authenticate("admin1", "admin-pass") is None  # stepped down
+    assert repo.authenticate("admin2", "admin2-pass") is not None
+
+
+def test_reactivation_is_never_blocked_by_the_guard(repo, db_session, users):
+    other = repo.create("admin2", "admin2-pass", role="admin")
+    db_session.commit()
+    # Hand over (admin2 remains), then admin2 re-activates admin1. Setting
+    # active=True skips the guard entirely, so this is always allowed.
+    assert repo.set_active(users["admin"].id, False, owner_id=other.id)
+    assert repo.set_active(users["admin"].id, True, owner_id=other.id)
+    db_session.commit()
+    assert repo.authenticate("admin1", "admin-pass") is not None
+    assert repo.authenticate("admin2", "admin2-pass") is not None
+
+
+def test_deactivating_a_non_admin_is_unaffected_by_the_guard(repo, users, db_session):
+    # The guard only protects the last active ADMIN; ordinary accounts can
+    # always be deactivated (the users-table "delete" path).
+    assert repo.set_active(users["alice"].id, False, owner_id=users["admin"].id)
+    db_session.commit()
+    assert repo.authenticate("alice", "alice-pass") is None
 
 
 # -- create / validation ---------------------------------------------------

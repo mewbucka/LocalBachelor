@@ -49,14 +49,20 @@ def _active_user_id(request: Request, db: Session) -> int | None:
 @router.get("/")
 def home(request: Request, db: Session = Depends(get_db)) -> Response:
     """The three-pane shell; anonymous visitors go to /login (or /setup)."""
-    if _active_user_id(request, db) is None:
+    uid = _active_user_id(request, db)
+    if uid is None:
         if UserRepository(db).count() == 0:
             # Pre-setup instances have no accounts at all: the wizard is
             # the only entry point (roadmap 1.2).
             return RedirectResponse("/setup", status_code=303)
         return RedirectResponse("/login", status_code=303)
+    user = db.get(User, uid)
+    # The sidebar "Admin" link is shown only to active admins (task 1.5).
+    is_admin = user is not None and user.role == "admin"
     templates: Jinja2Templates = request.app.state.templates
-    return templates.TemplateResponse(request=request, name="home.html", context={})
+    return templates.TemplateResponse(
+        request=request, name="home.html", context={"is_admin": is_admin}
+    )
 
 
 @router.get("/login")

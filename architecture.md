@@ -424,6 +424,11 @@ grounded on.
 - **Admin scope is administrative only** (create/deactivate users, reset
   passwords, admin-default settings). Admins do NOT bypass tenant
   isolation to read other users' data.
+- **Last-active-admin invariant:** the last remaining ACTIVE admin cannot
+  be deactivated (409 Conflict); an admin may step down only while another
+  active admin remains. Reactivation is never blocked (it cannot orphan the
+  instance). Enforced in the users repository (`set_active`), surfaced
+  localized on both the JSON and form paths.
 - **Negative tests (mandatory, one per entity):** user A cannot
   read / update / delete any entity of user B — projects, sources,
   chunks, notes, jobs, settings.

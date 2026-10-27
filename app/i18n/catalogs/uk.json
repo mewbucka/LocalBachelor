@@ -35,5 +35,22 @@
   "auth.login": "Вхід",
   "auth.logout": "Вийти",
   "auth.csrf_invalid": "Сесію втрачено, повторіть, будь ласка",
-  "settings.no_settings": "Не вказано налаштувань"
+  "settings.no_settings": "Не вказано налаштувань",
+  "nav.label.admin": "Адміністрування",
+  "auth.forbidden": "У вас немає дозволу переглядати цю сторінку",
+  "admin.title": "Керування користувачами",
+  "admin.role": "Роль",
+  "admin.role.admin": "Адміністратор",
+  "admin.role.user": "Користувач",
+  "admin.lang": "Мова",
+  "admin.status": "Статус",
+  "admin.created_at": "Створено",
+  "admin.active": "Активний",
+  "admin.inactive": "Неактивний",
+  "admin.add": "Додати користувача",
+  "admin.add_user": "Створити користувача",
+  "admin.deactivate": "Деактивувати",
+  "admin.activate": "Активувати",
+  "admin.reset_password": "Скинути пароль",
+  "admin.error.last_admin": "Неможливо деактивувати останнього активного адміністратора"
 }

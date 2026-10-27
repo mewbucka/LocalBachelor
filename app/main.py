@@ -16,6 +16,7 @@ import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 
+from app.api.admin import router as admin_router
 from app.api.auth import router as auth_router
 from app.api.lang import router as lang_router
 from app.api.pages import router as pages_router
@@ -119,6 +120,9 @@ def create_app(config_path: str | Path = "config.yaml") -> FastAPI:
     app.include_router(pages_router)
     app.include_router(settings_router)
     app.include_router(theme_router)
+    # Task 1.5: the admin user-management page (/admin) and the admin-only
+    # /api/admin/users endpoints (create / deactivate / reset password).
+    app.include_router(admin_router)
     app.mount(
         "/static",
         StaticFiles(directory=str(Path(__file__).parent / "static")),
