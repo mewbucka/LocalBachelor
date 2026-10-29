@@ -21,7 +21,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from app.core.auth import resolve_session_user_id
+from app.core.auth import is_secure_request, resolve_session_user_id
 from app.core.theme import (
     DEFAULT_THEME,
     SUPPORTED_THEMES,
@@ -57,6 +57,7 @@ def switch_theme(
         max_age=THEME_COOKIE_TTL_SECONDS,
         httponly=True,
         samesite="lax",
+        secure=is_secure_request(request),
         path="/",
     )
     uid = getattr(request.state, "session_user_id", None)

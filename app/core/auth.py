@@ -11,9 +11,11 @@ service topology (architecture section 15). ``secret_key`` (config.yaml,
 roadmap rule 7) is the signing key.
 
 Cookie flags: the session cookie is set ``httpOnly`` + ``SameSite=Lax``
-here, per the Phase 1 security baseline (section 13). The ``Secure`` flag,
-session-fixation handling, and the CSRF double-submit middleware are
-task 1.6.
+here, per the Phase 1 security baseline (section 13). The ``Secure`` flag
+is added conditionally (``is_secure_request``) only when the request is
+served over TLS, so cookies work over plain HTTP on the default local
+bind and gain ``Secure`` automatically behind an HTTPS proxy (task 1.6).
+The CSRF double-submit cookie in ``app/core/csrf.py`` uses the same flag.
 """
 
 from __future__ import annotations
@@ -32,6 +34,24 @@ from app.models import User
 
 SESSION_COOKIE = "lb_session"
 SESSION_TTL_SECONDS = 7 * 24 * 60 * 60  # 7 days
+
+
+def is_secure_request(request: Request) -> bool:
+    """True when the request is served over TLS (section 13, task 1.6).
+
+    The cookie ``Secure`` flag is only added when this returns true, so
+    cookies work over plain HTTP on the default local bind (127.0.0.1)
+    and gain ``Secure`` behind a TLS-terminating proxy. A trusted proxy's
+    ``X-Forwarded-Proto`` header (first value, case-insensitive) decides
+    when the direct scheme is not ``https``; an ``https`` scheme always
+    wins.
+    """
+    if request.url.scheme == "https":
+        return True
+    forwarded = request.headers.get("x-forwarded-proto")
+    if forwarded is None:
+        return False
+    return forwarded.split(",", 1)[0].strip().lower() == "https"
 
 
 def _b64url_encode(data: bytes) -> bytes:
@@ -89,20 +109,31 @@ class SessionManager:
             return None
         return uid
 
-    def set_cookie(self, response: Response, user_id: int) -> None:
-        """Attach the session cookie (httpOnly + SameSite=Lax, section 13)."""
+    def set_cookie(self, response: Response, user_id: int, *, secure: bool = False) -> None:
+        """Attach the session cookie (httpOnly + SameSite=Lax, section 13).
+
+        ``secure`` (task 1.6) adds the ``Secure`` flag when the request is
+        served over TLS (``is_secure_request``), so the cookie is never
+        transmitted over a plain-HTTP hop behind a proxy.
+        """
         response.set_cookie(
             SESSION_COOKIE,
             self.issue(user_id),
             max_age=self._ttl,
             httponly=True,
             samesite="lax",
+            secure=secure,
             path="/",
         )
 
-    def clear_cookie(self, response: Response) -> None:
-        """Expire the session cookie on logout."""
-        response.delete_cookie(SESSION_COOKIE, path="/")
+    def clear_cookie(self, response: Response, *, secure: bool = False) -> None:
+        """Expire the session cookie on logout.
+
+        ``secure`` must mirror the flag the cookie was set with (task 1.6);
+        a ``Secure`` cookie is only deleted when the delete request is also
+        marked ``Secure``.
+        """
+        response.delete_cookie(SESSION_COOKIE, path="/", secure=secure)
 
 
 def resolve_session_user_id(request: Request) -> int | None:

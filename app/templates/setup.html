@@ -17,6 +17,8 @@
   <p>{{ _("setup.intro") }}</p>
   {% if error %}<p class="error">{{ _("setup.error." ~ error) }}</p>{% endif %}
   <form method="post" action="/setup">
+    {# Task 1.6: the double-submit CSRF token (checked by the middleware). #}
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label for="username">{{ _("setup.username") }}</label>
     <input id="username" name="username" maxlength="64" required value="{{ username }}">
     <label for="password">{{ _("setup.password") }}</label>

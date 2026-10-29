@@ -16,6 +16,12 @@ Task 1.3: every string is an i18n catalog lookup (``_()`` in the
 template; the error is passed as a catalog-key suffix,
 ``setup.error.<code>``). The page renders in the locale resolved by the
 i18n middleware (architecture §14).
+
+Task 1.6: the form carries a hidden ``csrf_token`` field (the double-submit
+``lb_csrf`` cookie token) checked by the CSRF middleware in app/main.py,
+and on success the session cookie is set ``Secure`` when the request is over
+TLS (``is_secure_request``) and the CSRF token is ROTATED (stashed for the
+middleware to persist).
 """
 
 from __future__ import annotations
@@ -25,7 +31,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from app.core.auth import SessionManager
+from app.core.auth import SessionManager, is_secure_request
 from app.core.passwords import check_password_policy
 from app.db.session import get_db
 from app.i18n import SUPPORTED_LOCALES
@@ -124,5 +130,9 @@ def setup_submit(
             request, username=username, lang=lang, error="username_taken", status_code=400
         )
     redirect = RedirectResponse("/", status_code=303)
-    manager.set_cookie(redirect, user.id)
+    manager.set_cookie(redirect, user.id, secure=is_secure_request(request))
+    # Rotate the CSRF token on session establishment (task 1.6): stash a
+    # fresh value for the middleware to persist, invalidating any token a
+    # cross-site page captured before setup.
+    request.state.csrf_cookie_token = request.app.state.csrf_store.new_token()
     return redirect

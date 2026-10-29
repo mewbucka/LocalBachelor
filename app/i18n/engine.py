@@ -24,9 +24,10 @@ Surfaces:
   per page as ``<script type="application/json" id="i18n-catalog">`` for
   the tiny dependency-free vanilla-JS ``window._(key)`` helper in
   ``templates/base.html``.
-- Jinja global ``csrf_token()`` (task 1.4) — a fresh stateless signed CSRF
-  token per render, for the HTML forms that POST to the JSON auth endpoints
-  (the header logout form and the login form).
+- Jinja global ``csrf_token()`` (task 1.6) — the request's double-submit
+  ``lb_csrf`` cookie token (stable per browser, rotated on session
+  establishment), for the HTML forms that POST to the JSON auth endpoints
+  (the header logout form, the login form, the setup form, the admin forms).
 """
 
 from __future__ import annotations
@@ -205,8 +206,9 @@ def create_templates() -> Jinja2Templates:
     templates.env.globals["_"] = jinja_translate
     templates.env.globals["i18n_catalog_json"] = jinja_catalog_json
     templates.env.globals["jinja_locale"] = jinja_locale
-    # Task 1.4: the stateless signed CSRF token for the HTML forms (the
-    # header logout form in base.html, the login form in login.html).
+    # Task 1.6: the double-submit CSRF cookie token for the HTML forms (the
+    # header logout form in base.html, the login form, the setup form, and
+    # the admin forms).
     templates.env.globals["csrf_token"] = jinja_csrf_token
     return templates
 

@@ -14,12 +14,18 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.testclient import TestClient
 
+from app.core.csrf import CSRF_COOKIE
 from app.i18n import LANG_COOKIE, load_catalog, translate
 from app.main import create_app
 from app.models import Base
 from app.repositories.users import UserRepository
 
 PASSWORD = "correct-horse-battery"
+
+
+def _csrf(client) -> str:
+    """The ``lb_csrf`` double-submit token (task 1.6) the client holds."""
+    return client.cookies[CSRF_COOKIE]
 
 
 def _register_probes(application: FastAPI) -> None:
@@ -199,9 +205,15 @@ def test_setup_page_embeds_catalog_for_js(fresh_client):
 
 
 def test_setup_error_rendered_localized(fresh_client):
+    fresh_client.get("/setup")  # mint the lb_csrf double-submit cookie
     response = fresh_client.post(
         "/setup",
-        data={"username": "boss", "password": "short", "lang": "en"},
+        data={
+            "username": "boss",
+            "password": "short",
+            "lang": "en",
+            "csrf_token": _csrf(fresh_client),
+        },
         headers={"Accept-Language": "uk"},
     )
     assert response.status_code == 400
@@ -291,7 +303,11 @@ def test_patch_lang_requires_session_localized(client):
 
 def test_patch_lang_updates_preference_and_locale(client, app):
     client.post("/api/auth/login", json={"username": "alice", "password": "alice-pass"})
-    response = client.patch("/api/users/lang", json={"lang": "uk"})
+    response = client.patch(
+        "/api/users/lang",
+        json={"lang": "uk"},
+        headers={"X-CSRF-Token": _csrf(client)},
+    )
     assert response.status_code == 200
     assert response.json()["lang"] == "uk"
     session = app.state.session_factory()
@@ -307,7 +323,11 @@ def test_patch_lang_updates_preference_and_locale(client, app):
 
 def test_patch_lang_invalid_rejected(client):
     client.post("/api/auth/login", json={"username": "alice", "password": "alice-pass"})
-    response = client.patch("/api/users/lang", json={"lang": "fr"})
+    response = client.patch(
+        "/api/users/lang",
+        json={"lang": "fr"},
+        headers={"X-CSRF-Token": _csrf(client)},
+    )
     assert response.status_code == 422
 
 

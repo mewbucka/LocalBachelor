@@ -35,6 +35,7 @@
   "auth.login": "Sign in",
   "auth.logout": "Sign out",
   "auth.csrf_invalid": "Session expired, please try again",
+  "security.lan_warning": "LocalBachelor is reachable from your local network (not just this device). Keep this only if you intentionally opened it to the network.",
   "settings.no_settings": "No settings provided",
   "nav.label.admin": "Admin",
   "auth.forbidden": "You do not have permission to view this page",

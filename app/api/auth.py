@@ -7,10 +7,15 @@ argon2id and, on success, sets a compact signed session cookie;
 Task 1.4: login and logout are DUAL-PATH. A JSON ``Content-Type`` — or a
 request with NO content-type (the existing no-body logout test) — is the
 API path: token-less, returning JSON (the shape a client or the test suite
-uses). A form-ENCODED ``Content-Type`` is the browser path: it requires the
-stateless signed CSRF token (task 1.4; the full CSRF middleware is 1.6) and
-answers with HTML — re-rendering the page on failure, or 303-redirecting on
-success.
+uses). A form-ENCODED ``Content-Type`` is the browser path and answers with
+HTML — re-rendering the page on failure, or 303-redirecting on success.
+
+Task 1.6: the form-path CSRF token is no longer checked here — the
+double-submit ``lb_csrf`` cookie is enforced by the middleware in
+``app/main.py`` (the single enforcement point). On a SUCCESSFUL session
+establishment (login / first-run) the endpoint stashes a ROTATED token for
+the middleware to persist, and the session cookie is set ``Secure`` when the
+request is served over TLS (``is_secure_request``).
 
 First-run (roadmap 1.2): ``GET /api/auth/first-run`` reports whether the
 instance still needs setup (users table empty); ``POST`` creates the FIRST
@@ -32,7 +37,7 @@ from pydantic import ValidationError as PydanticValidationError
 from sqlalchemy.orm import Session
 from starlette.datastructures import FormData
 
-from app.core.auth import SessionManager
+from app.core.auth import SessionManager, is_secure_request
 from app.core.csrf import CsrfManager
 from app.core.passwords import MIN_PASSWORD_LENGTH
 from app.db.session import get_db
@@ -51,8 +56,16 @@ def _session_manager(request: Request) -> SessionManager:
     return request.app.state.session_store
 
 
-def _csrf_store(request: Request) -> CsrfManager:
-    return request.app.state.csrf_store
+def _rotate_csrf(request: Request) -> None:
+    """Stash a fresh CSRF token for the middleware to persist on the response.
+
+    Rotated when a session is ESTABLISHED (login / first-run success) so a
+    cross-site page that captured the old token is left holding a stale one
+    (app/core/csrf.py, task 1.6). The middleware reads the stashed token and
+    sets the ``lb_csrf`` cookie.
+    """
+    store: CsrfManager = request.app.state.csrf_store
+    request.state.csrf_cookie_token = store.new_token()
 
 
 def _is_form(request: Request) -> bool:
@@ -105,23 +118,21 @@ async def login(
     request: Request,
     db: Session = Depends(get_db),
     manager: SessionManager = Depends(_session_manager),
-    csrf: CsrfManager = Depends(_csrf_store),
 ) -> Response:
     """Verify credentials; on success set the session cookie.
 
     JSON path: validate the ``LoginRequest`` body (422 on a malformed
     body), then 401 JSON for bad credentials or the user object + session
-    cookie on success. Form path: verify the CSRF token first (403 on a
-    missing/invalid token), then re-render the login page on bad credentials
-    (401, localized, fresh token) or 303-redirect to ``/`` on success.
+    cookie on success. Form path (the browser login form): re-render the
+    login page on bad credentials (401, localized, stable token) or
+    303-redirect to ``/`` on success. The form's ``csrf_token`` is checked by
+    the CSRF middleware (app/main.py), not here. On success the CSRF token
+    is ROTATED (``_rotate_csrf``) and the cookie set ``Secure`` when the
+    request is over TLS (``is_secure_request``).
     """
+    secure = is_secure_request(request)
     if _is_form(request):
         form = await request.form()
-        if not csrf.validate(_form_str(form, "csrf_token")):
-            raise HTTPException(
-                status_code=403,
-                detail=translate("auth.csrf_invalid", request_locale(request)),
-            )
         username = _form_str(form, "username")
         password = _form_str(form, "password")
         user = UserRepository(db).authenticate(username, password)
@@ -130,7 +141,8 @@ async def login(
                 request, username=username, error="invalid_credentials", status_code=401
             )
         redirect = RedirectResponse("/", status_code=303)
-        manager.set_cookie(redirect, user.id)
+        manager.set_cookie(redirect, user.id, secure=secure)
+        _rotate_csrf(request)
         return redirect
 
     try:
@@ -147,7 +159,8 @@ async def login(
         status_code=200,
         content={"id": user.id, "username": user.username, "role": user.role, "lang": user.lang},
     )
-    manager.set_cookie(response, user.id)
+    manager.set_cookie(response, user.id, secure=secure)
+    _rotate_csrf(request)
     return response
 
 
@@ -155,28 +168,25 @@ async def login(
 async def logout(
     request: Request,
     manager: SessionManager = Depends(_session_manager),
-    csrf: CsrfManager = Depends(_csrf_store),
 ) -> Response:
     """Clear the session cookie (idempotent; public).
 
     JSON path (a client call, or a no-body POST): clear the cookie and
-    return JSON. Form path (the header logout button): verify the CSRF token
-    first (403 on a missing/invalid token, and the cookie is NOT cleared on
-    failure), then clear the cookie and 303-redirect to ``/login``.
+    return JSON. Form path (the header logout button): the ``csrf_token`` is
+    checked by the CSRF middleware (app/main.py, not here), then the cookie
+    is cleared and the browser 303-redirects to ``/login``. The CSRF token
+    is NOT rotated on logout (the session simply ends; the next login mints
+    a fresh one), and the cookie is deleted with ``Secure`` mirroring how it
+    was set (``is_secure_request``).
     """
+    secure = is_secure_request(request)
     if _is_form(request):
-        form = await request.form()
-        if not csrf.validate(_form_str(form, "csrf_token")):
-            raise HTTPException(
-                status_code=403,
-                detail=translate("auth.csrf_invalid", request_locale(request)),
-            )
         redirect = RedirectResponse("/login", status_code=303)
-        manager.clear_cookie(redirect)
+        manager.clear_cookie(redirect, secure=secure)
         return redirect
 
     response = JSONResponse(status_code=200, content={"ok": "logged_out"})
-    manager.clear_cookie(response)
+    manager.clear_cookie(response, secure=secure)
     return response
 
 
@@ -213,7 +223,9 @@ def first_run(
     table cannot become empty again, and a re-openable bootstrap would be
     an unauthenticated privilege-escalation hole. On success a session
     cookie is issued (same SessionManager as login) so the caller is signed
-    in immediately; 200 (not 201) mirrors the sibling login endpoint.
+    in immediately; 200 (not 201) mirrors the sibling login endpoint. On
+    success the CSRF token is ROTATED (``_rotate_csrf``) and the cookie set
+    ``Secure`` when the request is over TLS (``is_secure_request``).
     """
     repo = UserRepository(db)
     if repo.count() > 0:
@@ -229,5 +241,6 @@ def first_run(
         raise HTTPException(
             status_code=409, detail=translate("auth.setup_completed", request_locale(request))
         ) from None
-    manager.set_cookie(response, user.id)
+    manager.set_cookie(response, user.id, secure=is_secure_request(request))
+    _rotate_csrf(request)
     return {"id": user.id, "username": user.username, "role": user.role, "lang": user.lang}

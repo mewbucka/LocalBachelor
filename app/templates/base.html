@@ -16,8 +16,13 @@
   - the current catalog embedded ONCE per page as
     <script type="application/json" id="i18n-catalog">, read by the
     dependency-free vanilla-JS window._(key) helper;
-  - a CSRF token (csrf_token()) for the HTML forms that POST to the JSON
-    auth endpoints (task 1.4; the full CSRF middleware is task 1.6).
+  - a double-submit CSRF token (csrf_token(), the lb_csrf cookie) for the
+    HTML forms that POST to the JSON auth endpoints (task 1.6);
+  - JS-initiated (HTMX/fetch) mutating calls (the signed-in theme toggle
+    and language switcher) send the X-CSRF-Token header read from the same
+    lb_csrf cookie (task 1.6);
+  - a LAN opt-in warning banner (role="alert") when the instance binds a
+    non-loopback host (task 1.6).
 
   home.html (the bare shell + empty states) and login.html (the sign-in
   form in the main pane) extend this; setup.html extends it too (the
@@ -52,7 +57,7 @@
           btn.addEventListener("click", function () {
             fetch("/api/settings", {
               method: "PUT",
-              headers: { "Content-Type": "application/json" },
+              headers: { "Content-Type": "application/json", "X-CSRF-Token": window._csrfToken() },
               body: JSON.stringify({ theme: btn.dataset.target })
             }).then(function (res) {
               if (res.ok) { window.location.reload(); }
@@ -80,7 +85,7 @@
             btn.addEventListener("click", function () {
               fetch("/api/users/lang", {
                 method: "PATCH",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", "X-CSRF-Token": window._csrfToken() },
                 body: JSON.stringify({ lang: btn.dataset.lang })
               }).then(function (res) {
                 if (res.ok) { window.location.reload(); }
@@ -105,6 +110,11 @@
       {% endif %}
     </div>
   </header>
+  {# LAN opt-in warning (task 1.6): shown only when the instance binds a
+     non-loopback host (app.state.lan_exposed, set in the app factory). #}
+  {% if request.app.state.lan_exposed %}
+  <div class="lb-lan-warning" role="alert">{{ _("security.lan_warning") }}</div>
+  {% endif %}
 
   <div class="lb-shell">
     <aside class="lb-sidebar">
@@ -147,6 +157,14 @@
           throw new Error("i18n: missing key " + key);
         }
         return value;
+      };
+      // Task 1.6: read the double-submit CSRF cookie so JS-initiated
+      // (HTMX/fetch) mutating calls can send the X-CSRF-Token header the
+      // middleware checks. The cookie is JS-readable (httponly=False) for
+      // exactly this purpose.
+      window._csrfToken = function () {
+        var m = document.cookie.match(/(?:^|; )lb_csrf=([^;]+)/);
+        return m ? m[1] : "";
       };
     })();
   </script>

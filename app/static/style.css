@@ -16,6 +16,7 @@
   --lb-accent: #2f6fed;
   --lb-accent-fg: #ffffff;
   --lb-danger: #b00020;
+  --lb-warning: #8a5a00;
 }
 
 [data-theme="dark"] {
@@ -28,6 +29,7 @@
   --lb-accent: #6ea3ff;
   --lb-accent-fg: #0d1015;
   --lb-danger: #ff5c74;
+  --lb-warning: #ffc857;
 }
 
 * {
@@ -96,6 +98,19 @@ a.lb-toggle-btn {
 .lb-lang {
   display: flex;
   gap: 0.25rem;
+}
+
+/* LAN opt-in warning banner (task 1.6): a full-width strip between the
+   header and the shell, shown only when the instance binds a non-loopback
+   host. Amber (not red) — a caution, not an error. */
+.lb-lan-warning {
+  margin: 0;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--lb-warning);
+  background: var(--lb-bg-alt);
+  color: var(--lb-warning);
+  font-size: 0.9rem;
+  text-align: center;
 }
 
 /* -- three-pane shell (roadmap 1.4 mockup) ---------------------------------- */

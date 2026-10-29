@@ -6,12 +6,18 @@ settings row and returns the new value), and loud rejection of an empty body
 (422 ``settings.no_settings``) and of unknown keys (422, ``extra="forbid"``).
 The full settings surface (GET, typed defaults, masked provider keys, the
 settings UI) is tasks 2.1/2.2/2.6.
+
+Task 1.6: a signed-in caller must also send the double-submit
+``X-CSRF-Token`` header (the ``lb_csrf`` cookie value) or the middleware
+403s; an anonymous caller is rejected by the route's own 401 before any CSRF
+check, so those tests stay header-less.
 """
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.core.csrf import CSRF_COOKIE
 from app.main import create_app
 from app.models import Base
 from app.repositories.settings import SettingsRepository
@@ -60,20 +66,32 @@ def test_put_settings_anonymous_401_localized(client):
 
 def test_put_settings_empty_body_422(client):
     client.post("/api/auth/login", json={"username": "alice", "password": "alice-pass"})
-    response = client.put("/api/settings", json={})
+    response = client.put(
+        "/api/settings",
+        json={},
+        headers={"X-CSRF-Token": client.cookies[CSRF_COOKIE]},
+    )
     assert response.status_code == 422
     assert response.json()["detail"] == "No settings provided"
 
 
 def test_put_settings_unknown_key_422(client):
     client.post("/api/auth/login", json={"username": "alice", "password": "alice-pass"})
-    response = client.put("/api/settings", json={"theme": "dark", "bogus": 1})
+    response = client.put(
+        "/api/settings",
+        json={"theme": "dark", "bogus": 1},
+        headers={"X-CSRF-Token": client.cookies[CSRF_COOKIE]},
+    )
     assert response.status_code == 422
 
 
 def test_put_settings_invalid_theme_422(client):
     client.post("/api/auth/login", json={"username": "alice", "password": "alice-pass"})
-    response = client.put("/api/settings", json={"theme": "neon"})
+    response = client.put(
+        "/api/settings",
+        json={"theme": "neon"},
+        headers={"X-CSRF-Token": client.cookies[CSRF_COOKIE]},
+    )
     assert response.status_code == 422
 
 
@@ -82,14 +100,22 @@ def test_put_settings_invalid_theme_422(client):
 
 def test_put_settings_updates_theme(client):
     client.post("/api/auth/login", json={"username": "alice", "password": "alice-pass"})
-    response = client.put("/api/settings", json={"theme": "dark"})
+    response = client.put(
+        "/api/settings",
+        json={"theme": "dark"},
+        headers={"X-CSRF-Token": client.cookies[CSRF_COOKIE]},
+    )
     assert response.status_code == 200
     assert response.json() == {"theme": "dark"}
 
 
 def test_put_settings_persists_to_settings_row(client, app):
     client.post("/api/auth/login", json={"username": "alice", "password": "alice-pass"})
-    client.put("/api/settings", json={"theme": "dark"})
+    client.put(
+        "/api/settings",
+        json={"theme": "dark"},
+        headers={"X-CSRF-Token": client.cookies[CSRF_COOKIE]},
+    )
     session = app.state.session_factory()
     try:
         alice = UserRepository(session).get_by_username("alice")
@@ -100,8 +126,19 @@ def test_put_settings_persists_to_settings_row(client, app):
 
 def test_put_settings_toggles_between_themes(client, app):
     client.post("/api/auth/login", json={"username": "alice", "password": "alice-pass"})
-    assert client.put("/api/settings", json={"theme": "dark"}).json() == {"theme": "dark"}
-    assert client.put("/api/settings", json={"theme": "light"}).json() == {"theme": "light"}
+    token = client.cookies[CSRF_COOKIE]
+    dark = client.put(
+        "/api/settings",
+        json={"theme": "dark"},
+        headers={"X-CSRF-Token": token},
+    )
+    assert dark.json() == {"theme": "dark"}
+    light = client.put(
+        "/api/settings",
+        json={"theme": "light"},
+        headers={"X-CSRF-Token": token},
+    )
+    assert light.json() == {"theme": "light"}
     session = app.state.session_factory()
     try:
         alice = UserRepository(session).get_by_username("alice")

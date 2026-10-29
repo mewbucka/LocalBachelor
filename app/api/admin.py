@@ -15,13 +15,15 @@ both localized):
   the password (dual-path, below).
 
 Dual-path (mirrors ``app/api/auth.py``): a form-encoded body is the browser
-path — it requires the stateless signed CSRF token (403 on a missing/invalid
-token) and answers by 303-redirecting to ``/admin`` (or re-rendering it with
-the localized error). A JSON body is the API path: token-less, returning
-JSON (201 create / 200 update, 404 missing target, 409 last-admin guard,
-422 malformed body). The HTML ``POST`` reaches the ``PATCH``-contracted
-endpoint via ``api_route(methods=["POST", "PATCH"])`` (forms cannot natively
-PATCH); JSON clients send PATCH.
+path — its ``csrf_token`` is checked by the CSRF middleware (app/main.py,
+not here) and the endpoint answers by 303-redirecting to ``/admin`` (or
+re-rendering it with the localized error). A JSON body is the API path:
+token-less (the middleware enforces the double-submit token only on the two
+HTMX settings/language endpoints, not on admin CRUD), returning JSON (201
+create / 200 update, 404 missing target, 409 last-admin guard, 422 malformed
+body). The HTML ``POST`` reaches the ``PATCH``-contracted endpoint via
+``api_route(methods=["POST", "PATCH"])`` (forms cannot natively PATCH); JSON
+clients send PATCH.
 """
 
 from __future__ import annotations
@@ -38,7 +40,6 @@ from sqlalchemy.orm import Session
 from starlette.datastructures import FormData
 
 from app.core.auth import get_current_user
-from app.core.csrf import CsrfManager
 from app.core.passwords import MIN_PASSWORD_LENGTH, check_password_policy
 from app.db.session import get_db
 from app.i18n import request_locale, translate
@@ -46,10 +47,6 @@ from app.models import User
 from app.repositories.users import AdminGuardViolation, UserRepository
 
 router = APIRouter(tags=["admin"])
-
-
-def _csrf_store(request: Request) -> CsrfManager:
-    return request.app.state.csrf_store
 
 
 def _is_form(request: Request) -> bool:
@@ -162,7 +159,6 @@ async def create_user(
     request: Request,
     db: Session = Depends(get_db),
     admin: User = Depends(get_admin_user),
-    csrf: CsrfManager = Depends(_csrf_store),
 ) -> Response:
     """Create an account (admin only).
 
@@ -176,11 +172,6 @@ async def create_user(
     repo = UserRepository(db)
     if _is_form(request):
         form = await request.form()
-        if not csrf.validate(_form_str(form, "csrf_token")):
-            raise HTTPException(
-                status_code=403,
-                detail=translate("auth.csrf_invalid", request_locale(request)),
-            )
         username = _form_str(form, "username").strip()
         password = _form_str(form, "password")
         role = _form_str(form, "role") or "user"
@@ -237,7 +228,6 @@ async def update_user(
     request: Request,
     db: Session = Depends(get_db),
     admin: User = Depends(get_admin_user),
-    csrf: CsrfManager = Depends(_csrf_store),
 ) -> Response:
     """Deactivate/reactivate and/or reset an account's password (admin only).
 
@@ -252,11 +242,6 @@ async def update_user(
     repo = UserRepository(db)
     if _is_form(request):
         form = await request.form()
-        if not csrf.validate(_form_str(form, "csrf_token")):
-            raise HTTPException(
-                status_code=403,
-                detail=translate("auth.csrf_invalid", request_locale(request)),
-            )
         active_raw = _form_str(form, "active")
         password = _form_str(form, "password")
         if active_raw != "":

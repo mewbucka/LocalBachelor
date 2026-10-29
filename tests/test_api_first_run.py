@@ -15,11 +15,17 @@ from fastapi import Depends, HTTPException
 from fastapi.testclient import TestClient
 
 from app.core.auth import SESSION_COOKIE, get_current_user
+from app.core.csrf import CSRF_COOKIE
 from app.main import create_app
 from app.models import Base
 from app.repositories.users import UserRepository
 
 PASSWORD = "correct-horse-battery"
+
+
+def _csrf(client) -> str:
+    """The ``lb_csrf`` double-submit token (task 1.6) the client holds."""
+    return client.cookies[CSRF_COOKIE]
 
 
 @pytest.fixture()
@@ -161,9 +167,10 @@ def test_setup_page_renders_in_default_locale(client):
 
 
 def test_setup_page_post_creates_admin_and_redirects(client, app):
+    client.get("/setup")  # mint the lb_csrf double-submit cookie
     response = client.post(
         "/setup",
-        data={"username": "boss", "password": PASSWORD, "lang": "uk"},
+        data={"username": "boss", "password": PASSWORD, "lang": "uk", "csrf_token": _csrf(client)},
         follow_redirects=False,
     )
     assert response.status_code == 303
@@ -181,8 +188,10 @@ def test_setup_page_post_creates_admin_and_redirects(client, app):
 
 
 def test_setup_page_post_short_password_rejected(client, app):
+    client.get("/setup")  # mint the lb_csrf double-submit cookie
     response = client.post(
-        "/setup", data={"username": "boss", "password": "short", "lang": "en"}
+        "/setup",
+        data={"username": "boss", "password": "short", "lang": "en", "csrf_token": _csrf(client)},
     )
     assert response.status_code == 400
     assert '<p class="error">Password must be at least 8 characters</p>' in response.text
@@ -190,15 +199,19 @@ def test_setup_page_post_short_password_rejected(client, app):
 
 
 def test_setup_page_redirects_once_setup_done(client, app):
+    client.get("/setup")  # mint the lb_csrf double-submit cookie
     first = client.post(
         "/setup",
-        data={"username": "boss", "password": PASSWORD},
+        data={"username": "boss", "password": PASSWORD, "csrf_token": _csrf(client)},
         follow_redirects=False,
     )
     assert first.status_code == 303
     get_after = client.get("/setup", follow_redirects=False)
     assert get_after.status_code == 303
     assert get_after.headers["location"] == "/"
+    # Post-setup the bootstrap is closed: a re-POST is a no-op 303 redirect
+    # the middleware does NOT CSRF-enforce (/setup is gated on no users), so
+    # it needs no token.
     post_again = client.post(
         "/setup",
         data={"username": "other", "password": PASSWORD},

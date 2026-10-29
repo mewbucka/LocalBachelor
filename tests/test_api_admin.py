@@ -22,8 +22,8 @@ _CSRF_FIELD = re.compile(r'name="csrf_token"\s+value="([^"]+)"')
 
 
 def _csrf_from(html: str) -> str:
-    # All tokens on a page are independently valid (stateless), so the first
-    # one found (the header logout form) works for every form on the page.
+    # Every form on a page carries the same double-submit value (the lb_csrf
+    # cookie, task 1.6), so the first one found works for every form.
     match = _CSRF_FIELD.search(html)
     assert match is not None, "the page has no csrf_token hidden field"
     return match.group(1)
