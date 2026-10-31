@@ -64,5 +64,5 @@ def switch_lang(
     if uid is not None:
         user = db.get(User, uid)
         if user is not None and user.active:
-            UserRepository(db).set_lang(user.id, lang, owner_id=user.id)
+            UserRepository(db, user.id).set_lang(lang)
     return response

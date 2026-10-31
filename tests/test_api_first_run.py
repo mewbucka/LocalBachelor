@@ -53,7 +53,7 @@ def client(app):
 def _user_count(app) -> int:
     session = app.state.session_factory()
     try:
-        return UserRepository(session).count()
+        return UserRepository(session, None).count()
     finally:
         session.close()
 
@@ -79,7 +79,7 @@ def test_first_run_post_creates_admin_with_lang(client, app):
     assert body["lang"] == "uk"
     session = app.state.session_factory()
     try:
-        user = UserRepository(session).get_by_username("boss")
+        user = UserRepository(session, None).get_by_username("boss")
         assert user is not None
         assert user.role == "admin"
         assert user.lang == "uk"
@@ -178,7 +178,7 @@ def test_setup_page_post_creates_admin_and_redirects(client, app):
     assert SESSION_COOKIE in response.headers.get("set-cookie", "")
     session = app.state.session_factory()
     try:
-        user = UserRepository(session).get_by_username("boss")
+        user = UserRepository(session, None).get_by_username("boss")
         assert user is not None and user.role == "admin" and user.lang == "uk"
     finally:
         session.close()

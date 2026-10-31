@@ -111,7 +111,7 @@ def _render_admin(
     re-renders with it (and the given status code) on a rejected form
     submission.
     """
-    users = UserRepository(db).list_all(owner_id=admin.id)
+    users = UserRepository(db, admin.id).list_all_admin()
     context: dict[str, object] = {"users": users, "is_admin": True}
     if error is not None:
         context["error"] = error
@@ -144,7 +144,7 @@ def list_users(
     admin: User = Depends(get_admin_user),
 ) -> list[dict[str, object]]:
     """List every account (admin only, section 11)."""
-    return [_user_dict(u) for u in UserRepository(db).list_all(owner_id=admin.id)]
+    return [_user_dict(u) for u in UserRepository(db, admin.id).list_all_admin()]
 
 
 class CreateUserRequest(BaseModel):
@@ -169,7 +169,7 @@ async def create_user(
     A tampered ``role``/``lang`` falls back to the safe default (never
     grants admin from a forged value).
     """
-    repo = UserRepository(db)
+    repo = UserRepository(db, admin.id)
     if _is_form(request):
         form = await request.form()
         username = _form_str(form, "username").strip()
@@ -187,7 +187,7 @@ async def create_user(
         if lang not in ("en", "uk"):
             lang = "en"
         try:
-            repo.create(username, password, role=role, lang=lang, owner_id=admin.id)
+            repo.create_admin(username, password, role=role, lang=lang)
         except ValueError:
             # Only "username already taken" is reachable here (role/lang are
             # validated above and the actor is a known active admin).
@@ -199,9 +199,7 @@ async def create_user(
     except PydanticValidationError as exc:
         raise RequestValidationError(exc.errors()) from exc
     try:
-        user = repo.create(
-            body.username, body.password, role=body.role, lang=body.lang, owner_id=admin.id
-        )
+        user = repo.create_admin(body.username, body.password, role=body.role, lang=body.lang)
     except ValueError:
         # role/lang are validated by the model; only "username already taken"
         # is reachable here.
@@ -232,21 +230,21 @@ async def update_user(
     """Deactivate/reactivate and/or reset an account's password (admin only).
 
     JSON path (PATCH): ``{active?}`` and/or ``{password?}`` (min length
-    enforced; a body with neither is 422). ``set_active`` raising the
+    enforced; a body with neither is 422). ``set_active_admin`` raising the
     last-active-admin guard -> 409; a missing target -> 404; success -> 200
     with the updated account. Form path (POST, the page's controls): verify
     the CSRF token first (403); the ``active`` field toggles the flag and the
     ``password`` field resets it; a guard/short-password rejection re-renders
     ``/admin`` with the localized error, otherwise 303-redirect.
     """
-    repo = UserRepository(db)
+    repo = UserRepository(db, admin.id)
     if _is_form(request):
         form = await request.form()
         active_raw = _form_str(form, "active")
         password = _form_str(form, "password")
         if active_raw != "":
             try:
-                repo.set_active(user_id, active_raw == "1", owner_id=admin.id)
+                repo.set_active_admin(user_id, active_raw == "1")
             except AdminGuardViolation:
                 return _render_admin(request, db, admin, error="last_admin", status_code=409)
             return RedirectResponse("/admin", status_code=303)
@@ -257,7 +255,7 @@ async def update_user(
                 return _render_admin(
                     request, db, admin, error="password_too_short", status_code=400
                 )
-            repo.update_password(user_id, password, owner_id=admin.id)
+            repo.update_password_admin(user_id, password)
             return RedirectResponse("/admin", status_code=303)
         return RedirectResponse("/admin", status_code=303)
 
@@ -267,7 +265,7 @@ async def update_user(
         raise RequestValidationError(exc.errors()) from exc
     if body.active is not None:
         try:
-            changed = repo.set_active(user_id, body.active, owner_id=admin.id)
+            changed = repo.set_active_admin(user_id, body.active)
         except AdminGuardViolation:
             raise HTTPException(
                 status_code=409,
@@ -276,8 +274,8 @@ async def update_user(
         if not changed:
             raise HTTPException(404, detail=translate("error.not_found", request_locale(request)))
     if body.password is not None:
-        changed = repo.update_password(user_id, body.password, owner_id=admin.id)
+        changed = repo.update_password_admin(user_id, body.password)
         if not changed:
             raise HTTPException(404, detail=translate("error.not_found", request_locale(request)))
-    user = repo.get_by_id(user_id, owner_id=admin.id)
+    user = repo.get_admin(user_id)
     return JSONResponse(status_code=200, content=_user_dict(user) if user else {"id": user_id})

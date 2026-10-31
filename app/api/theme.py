@@ -66,5 +66,5 @@ def switch_theme(
     if uid is not None:
         user = db.get(User, uid)
         if user is not None and user.active:
-            SettingsRepository(db).set(uid, THEME_SETTING_KEY, theme, actor=user)
+            SettingsRepository(db, uid, actor=user).set(THEME_SETTING_KEY, theme)
     return response

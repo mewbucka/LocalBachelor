@@ -51,7 +51,7 @@ def home(request: Request, db: Session = Depends(get_db)) -> Response:
     """The three-pane shell; anonymous visitors go to /login (or /setup)."""
     uid = _active_user_id(request, db)
     if uid is None:
-        if UserRepository(db).count() == 0:
+        if UserRepository(db, None).count() == 0:
             # Pre-setup instances have no accounts at all: the wizard is
             # the only entry point (roadmap 1.2).
             return RedirectResponse("/setup", status_code=303)

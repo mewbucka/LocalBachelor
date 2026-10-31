@@ -22,7 +22,7 @@ def app(config_file) -> FastAPI:
     application = create_app(config_file)
     Base.metadata.create_all(application.state.engine)
     session = application.state.session_factory()
-    repo = UserRepository(session)
+    repo = UserRepository(session, None)
     repo.create("admin", "admin-pass", role="admin")
     repo.create("alice", "alice-pass", role="user")
     session.commit()

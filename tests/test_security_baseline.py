@@ -80,7 +80,7 @@ def _build_app(config: Path, *, seed: bool = True) -> tuple[FastAPI, list[loggin
     Base.metadata.create_all(application.state.engine)
     if seed:
         session = application.state.session_factory()
-        repo = UserRepository(session)
+        repo = UserRepository(session, None)
         repo.create("admin", "admin-pass", role="admin")
         repo.create("alice", "alice-pass", role="user")
         session.commit()

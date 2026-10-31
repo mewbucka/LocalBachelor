@@ -79,7 +79,7 @@ def _no_users(app: FastAPI) -> bool:
     """True while the instance has no accounts (first-run / setup pending)."""
     db = app.state.session_factory()
     try:
-        return UserRepository(db).count() == 0
+        return UserRepository(db, None).count() == 0
     finally:
         db.close()
 

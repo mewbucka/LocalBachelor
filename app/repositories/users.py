@@ -1,23 +1,30 @@
-"""UserRepository: tenant-scoped user access (architecture sections 3, 11).
+"""UserRepository: tenant-scoped user access (architecture §3, §11, task 1.7).
 
 The users table is the identity layer, so its isolation rules differ from
-content repositories:
+content repositories (the tenant is the row itself; the base
+repository's ``tenant_column`` is the primary key):
 
-- A plain user can only ever touch their OWN row (read / change password).
-- Admin scope is administrative (section 11): create users, deactivate /
-  reactivate users, reset any user's password, and list all accounts.
+- A plain user can only touch their OWN row (read, change password,
+  change language): the constructor binds the acting user's id and the
+  tenant-scoped methods operate on that row alone.
+- Admin scope is administrative (§11): create users, deactivate /
+  reactivate users, reset any user's password, and list all accounts —
+  the explicit ``*_admin`` methods, each requiring the bound actor to be
+  an active admin.
 - Admins do NOT bypass tenant isolation to read other users' DATA
   (projects, sources, chunks, notes, jobs, settings) — that stays owner-
   scoped in the respective repositories (Phase 3+).
+- First-run bootstrap (task 1.2) runs on a deliberately unbound instance
+  (``owner_id=None``); ``create`` is valid only there.
 """
 
 from __future__ import annotations
 
 from sqlalchemy import func, select
-from sqlalchemy.orm import Session
 
 from app.core.passwords import hash_password, verify_password
 from app.models import User
+from app.repositories.base import TenantScopedRepository, TenantScopeError
 
 _VALID_ROLES = ("admin", "user")
 _VALID_LANGS = ("en", "uk")
@@ -37,25 +44,25 @@ class AdminGuardViolation(Exception):
         self.code = code
 
 
-class UserRepository:
-    """User reads/writes scoped to the acting user (or admin scope)."""
+class UserRepository(TenantScopedRepository):
+    """User reads/writes scoped to the bound user (or admin scope)."""
 
-    def __init__(self, session: Session) -> None:
-        self._session = session
+    model = User
+    tenant_column = User.id  # identity table: the tenant is the row itself
 
-    # -- unscoped identity queries ---------------------------------------
+    # -- unscoped identity queries (not tenant content) -------------------
 
     def count(self) -> int:
         """Total number of user rows.
 
         The users table is the identity layer, not tenant content, so this
-        is deliberately unscoped (section 11's owner filters apply to the
-        content repositories). First-run (task 1.2) uses it to detect an
-        empty instance.
+        is deliberately unscoped (§11's owner filters apply to the content
+        repositories). First-run (task 1.2) uses it to detect an empty
+        instance.
         """
-        return self._session.scalar(select(func.count()).select_from(User)) or 0
+        return self.session.scalar(select(func.count()).select_from(User)) or 0
 
-    # -- authentication -------------------------------------------------
+    # -- authentication ---------------------------------------------------
 
     def authenticate(self, username: str, password: str) -> User | None:
         """Return the active user matching (username, password), else None.
@@ -64,14 +71,64 @@ class UserRepository:
         access. A wrong password and an unknown user are indistinguishable
         (both yield None) to avoid username enumeration.
         """
-        user = self._session.scalar(select(User).where(User.username == username))
+        user = self.session.scalar(select(User).where(User.username == username))
         if user is None or not user.active:
             return None
         if not verify_password(user.password_hash, password):
             return None
         return user
 
-    # -- admin user management (first-run bootstrap + admin panel) ------
+    def get_by_username(self, username: str) -> User | None:
+        """Public identity lookup (login, bootstrap, admin panel use).
+
+        The username→row mapping is the identity plane, not tenant content:
+        it is deliberately unscoped, like ``count``/``authenticate``.
+        """
+        return self.session.scalar(select(User).where(User.username == username))
+
+    # -- tenant scope: the bound user's own row ---------------------------
+
+    def get(self) -> User | None:
+        """The bound user's own row, else None.
+
+        The tenant is the row itself (``tenant_column`` is the primary
+        key), so the scoped query returns a row only when it IS the bound
+        account.
+        """
+        self._require_bound()
+        return self.session.scalar(self._scoped(select(User)))
+
+    def set_lang(self, lang: str) -> bool:
+        """Change the bound user's own UI language (architecture §14).
+
+        Self-service only: an account changes its OWN preference — there
+        is deliberately NO admin bypass (unlike the ``*_admin`` methods),
+        because a language preference is personal, not an administrative
+        act. Returns False (no change) when the bound row is missing.
+        """
+        if lang not in _VALID_LANGS:
+            raise ValueError(f"invalid lang: {lang!r}")
+        row = self.get()
+        if row is None:
+            return False
+        row.lang = lang
+        self.session.flush()
+        return True
+
+    def update_password(self, new_password: str) -> bool:
+        """Change the bound user's own password (self-service).
+
+        Returns False (no change) when the bound row is missing. An admin
+        resetting ANOTHER account's password uses ``update_password_admin``.
+        """
+        row = self.get()
+        if row is None:
+            return False
+        row.password_hash = hash_password(new_password)
+        self.session.flush()
+        return True
+
+    # -- bootstrap + admin scope (administrative, §11) ---------------------
 
     def create(
         self,
@@ -80,23 +137,106 @@ class UserRepository:
         *,
         role: str = "user",
         lang: str = "en",
-        owner_id: int | None = None,
     ) -> User:
-        """Create a user.
+        """Create the FIRST account (first-run bootstrap, task 1.2).
 
-        ``owner_id=None`` is the first-run bootstrap (no acting user yet,
-        task 1.2). ``owner_id`` set to an admin id is the admin panel
-        creating an account (task 1.5); a non-admin ``owner_id`` is
-        rejected with PermissionError.
+        Valid only on a deliberately unbound instance (``owner_id=None`` —
+        there is no acting user yet). Once a tenant is bound, account
+        creation is administrative work and goes through ``create_admin``;
+        calling ``create`` on a bound instance raises ``TenantScopeError``
+        (loudly, not a silent no-op).
         """
+        if self._owner_id is not None:
+            raise TenantScopeError(
+                "account creation on a bound tenant is administrative: "
+                "use create_admin"
+            )
+        return self._insert_user(username, password, role=role, lang=lang)
+
+    def create_admin(
+        self,
+        username: str,
+        password: str,
+        *,
+        role: str = "user",
+        lang: str = "en",
+    ) -> User:
+        """Create an account (admin panel, task 1.5). Administrative only.
+
+        The bound actor must be an active admin; a non-admin (or unbound)
+        actor gets PermissionError.
+        """
+        self._require_admin()
+        return self._insert_user(username, password, role=role, lang=lang)
+
+    def get_admin(self, user_id: int) -> User | None:
+        """One account row (administrative scope, §11). Admin only."""
+        self._require_admin()
+        return self.session.get(User, user_id)
+
+    def list_all_admin(self) -> list[User]:
+        """Admin-only listing of every account (the admin panel view).
+
+        A non-admin (or unbound) actor gets PermissionError, never a
+        partial list.
+        """
+        self._require_admin()
+        return list(self.session.scalars(select(User).order_by(User.id)))
+
+    def set_active_admin(self, user_id: int, active: bool) -> bool:
+        """Activate / deactivate an account. Administrative only (§11).
+
+        Deactivation is the users-table "delete" path: the row and all of
+        that user's data stay intact, but ``authenticate`` rejects the
+        account immediately. A user cannot self-deactivate (a plain user's
+        instance gets PermissionError from the guard).
+
+        Safety guard (task 1.5): the last remaining ACTIVE admin may never
+        be deactivated — doing so would leave the instance with no one able
+        to administer it (an admin who hands over would be locked out with
+        no successor, and nobody could ever re-enable the account). An admin
+        may deactivate THEMSELVES only when at least one other active admin
+        remains. Reactivation is never blocked: restoring an account can
+        never orphan the instance. Returns False (no change) when the target
+        is missing; a non-admin actor raises PermissionError.
+        """
+        self._require_admin()
+        row = self.session.get(User, user_id)
+        if row is None:
+            return False
+        if not active and row.active and row.role == "admin" and self._active_admin_count() == 1:
+            raise AdminGuardViolation("last_admin")
+        row.active = active
+        self.session.flush()
+        return True
+
+    def update_password_admin(self, user_id: int, new_password: str) -> bool:
+        """Reset any account's password. Administrative only (§11).
+
+        Returns False (no change) when the target row is missing; a
+        non-admin (or unbound) actor raises PermissionError.
+        """
+        self._require_admin()
+        row = self.session.get(User, user_id)
+        if row is None:
+            return False
+        row.password_hash = hash_password(new_password)
+        self.session.flush()
+        return True
+
+    # -- guards / helpers ---------------------------------------------------
+
+    def _require_admin(self) -> None:
+        """The bound actor must be an active admin, else PermissionError."""
+        actor = self.session.get(User, self._owner_id) if self._owner_id is not None else None
+        if actor is None or not actor.active or actor.role != "admin":
+            raise PermissionError("admin scope required")
+
+    def _insert_user(self, username: str, password: str, *, role: str, lang: str) -> User:
         if role not in _VALID_ROLES:
             raise ValueError(f"invalid role: {role!r}")
         if lang not in _VALID_LANGS:
             raise ValueError(f"invalid lang: {lang!r}")
-        if owner_id is not None:
-            actor = self._session.get(User, owner_id)
-            if actor is None or not actor.active or actor.role != "admin":
-                raise PermissionError("only an active admin can create users")
         if self.get_by_username(username) is not None:
             raise ValueError(f"username already taken: {username!r}")
         user = User(
@@ -106,109 +246,14 @@ class UserRepository:
             lang=lang,
             active=True,
         )
-        self._session.add(user)
-        self._session.flush()
+        self.session.add(user)
+        self.session.flush()
         return user
-
-    def get_by_username(self, username: str) -> User | None:
-        return self._session.scalar(select(User).where(User.username == username))
-
-    def get_by_id(self, user_id: int, owner_id: int) -> User | None:
-        """Return one account row only if the requester may see it.
-
-        A user sees their own row. An active admin sees any account row
-        (administrative scope, section 11). A plain user reading anyone
-        else's row — including an admin's — gets None, never the row.
-        """
-        row = self._session.get(User, user_id)
-        if row is None:
-            return None
-        if row.id == owner_id:
-            return row
-        actor = self._session.get(User, owner_id)
-        if actor is not None and actor.active and actor.role == "admin":
-            return row
-        return None
-
-    def list_all(self, owner_id: int) -> list[User]:
-        """Admin-only listing of every account (the admin panel view).
-
-        A non-admin caller gets an empty list, not the other tenants'
-        accounts.
-        """
-        actor = self._session.get(User, owner_id)
-        if actor is None or not actor.active or actor.role != "admin":
-            return []
-        return list(self._session.scalars(select(User).order_by(User.id)))
-
-    def update_password(self, user_id: int, new_password: str, owner_id: int) -> bool:
-        """Change a password: self-service, or an admin resetting it.
-
-        Returns False (no change) when the target is missing or the
-        requester is neither the owner nor an active admin.
-        """
-        row = self._session.get(User, user_id)
-        if row is None:
-            return False
-        if row.id != owner_id:
-            actor = self._session.get(User, owner_id)
-            if actor is None or not actor.active or actor.role != "admin":
-                return False
-        row.password_hash = hash_password(new_password)
-        self._session.flush()
-        return True
-
-    def set_lang(self, user_id: int, lang: str, owner_id: int) -> bool:
-        """Change a user's UI language (architecture §14).
-
-        Self-service only: an account changes its OWN preference — there
-        is deliberately NO admin bypass (unlike set_active /
-        update_password), because a language preference is personal, not an
-        administrative act. Returns False (no change) when the target row
-        is missing or not the requester's own.
-        """
-        if lang not in _VALID_LANGS:
-            raise ValueError(f"invalid lang: {lang!r}")
-        row = self._session.get(User, user_id)
-        if row is None or row.id != owner_id:
-            return False
-        row.lang = lang
-        self._session.flush()
-        return True
-
-    def set_active(self, user_id: int, active: bool, owner_id: int) -> bool:
-        """Activate / deactivate an account. Administrative only (section 11).
-
-        Deactivation is the users-table "delete" path: the row and all of
-        that user's data stay intact, but ``authenticate`` rejects the
-        account immediately. Only an active admin may change the flag (a
-        user cannot self-deactivate).
-
-        Safety guard (task 1.5): the last remaining ACTIVE admin may never
-        be deactivated — doing so would leave the instance with no one able
-        to administer it (an admin who hands over would be locked out with
-        no successor, and nobody could ever re-enable the account). An admin
-        may deactivate THEMSELVES only when at least one other active admin
-        remains. Reactivation is never blocked: restoring an account can
-        never orphan the instance. Returns False (no change) when the target
-        is missing or the actor is not an active admin.
-        """
-        row = self._session.get(User, user_id)
-        if row is None:
-            return False
-        actor = self._session.get(User, owner_id)
-        if actor is None or not actor.active or actor.role != "admin":
-            return False
-        if not active and row.active and row.role == "admin" and self._active_admin_count() == 1:
-            raise AdminGuardViolation("last_admin")
-        row.active = active
-        self._session.flush()
-        return True
 
     def _active_admin_count(self) -> int:
         """Number of active admin accounts (the admin-safety invariant)."""
         return (
-            self._session.scalar(
+            self.session.scalar(
                 select(func.count()).select_from(User).where(
                     User.role == "admin", User.active.is_(True)
                 )

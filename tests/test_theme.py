@@ -39,7 +39,7 @@ def app(config_file) -> FastAPI:
     application = create_app(config_file)
     Base.metadata.create_all(application.state.engine)
     session = application.state.session_factory()
-    repo = UserRepository(session)
+    repo = UserRepository(session, None)
     repo.create("admin", "admin-pass", role="admin")
     repo.create("alice", "alice-pass", role="user")
     repo.create("petr", "petr-pass", role="user", lang="uk")
@@ -74,8 +74,8 @@ def _set_own_theme(app, username, theme) -> None:
     """Write a user's own settings row directly (isolates resolution)."""
     session = app.state.session_factory()
     try:
-        user = UserRepository(session).get_by_username(username)
-        SettingsRepository(session).set(user.id, "theme", theme, actor=user)
+        user = UserRepository(session, None).get_by_username(username)
+        SettingsRepository(session, user.id, actor=user).set("theme", theme)
         session.commit()
     finally:
         session.close()
@@ -85,9 +85,9 @@ def _set_admin_default_theme(app, username, theme) -> None:
     """Write the admin-default settings row (owner_id NULL) as an admin."""
     session = app.state.session_factory()
     try:
-        admin = UserRepository(session).get_by_username(username)
+        admin = UserRepository(session, None).get_by_username(username)
         assert admin.role == "admin"
-        SettingsRepository(session).set(None, "theme", theme, actor=admin)
+        SettingsRepository(session, None, actor=admin).set("theme", theme)
         session.commit()
     finally:
         session.close()
@@ -96,10 +96,10 @@ def _set_admin_default_theme(app, username, theme) -> None:
 def _deactivate(app, username) -> None:
     session = app.state.session_factory()
     try:
-        repo = UserRepository(session)
+        repo = UserRepository(session, None)
         user = repo.get_by_username(username)
         admin = repo.get_by_username("admin")
-        repo.set_active(user.id, False, owner_id=admin.id)
+        UserRepository(session, admin.id).set_active_admin(user.id, False)
         session.commit()
     finally:
         session.close()
@@ -204,7 +204,7 @@ def test_post_theme_anonymous_does_not_create_settings_row(fresh_app, fresh_clie
     try:
         # Anonymous never writes a settings row (there is no user to attach
         # it to); the preference lives only in the cookie.
-        assert SettingsRepository(session).get(None, "theme") is None
+        assert SettingsRepository(session, None).get("theme") is None
     finally:
         session.close()
 
@@ -214,7 +214,7 @@ def test_post_theme_signed_in_syncs_settings_row(client, app):
     client.post("/theme", data={"theme": "dark"})
     session = app.state.session_factory()
     try:
-        alice = UserRepository(session).get_by_username("alice")
-        assert SettingsRepository(session).get(alice.id, "theme") == "dark"
+        alice = UserRepository(session, None).get_by_username("alice")
+        assert SettingsRepository(session, alice.id, actor=alice).get("theme") == "dark"
     finally:
         session.close()

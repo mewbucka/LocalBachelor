@@ -76,7 +76,7 @@ def setup_page(request: Request, db: Session = Depends(get_db)) -> Response:
     no post-setup purpose (the JSON twin answers 409; the HTML twin has
     no error page for "already set up", so it goes to the app root).
     """
-    if UserRepository(db).count() > 0:
+    if UserRepository(db, None).count() > 0:
         return RedirectResponse("/", status_code=303)
     return _render(request)
 
@@ -99,7 +99,7 @@ def setup_submit(
     — FastAPI discards the implicit response when a route returns a
     Response object.
     """
-    repo = UserRepository(db)
+    repo = UserRepository(db, None)
     if repo.count() > 0:
         # Pre-setup only (same rule as the JSON endpoint's 409): send the
         # browser to the app root; no account is created.

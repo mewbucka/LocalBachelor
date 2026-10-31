@@ -135,7 +135,7 @@ async def login(
         form = await request.form()
         username = _form_str(form, "username")
         password = _form_str(form, "password")
-        user = UserRepository(db).authenticate(username, password)
+        user = UserRepository(db, None).authenticate(username, password)
         if user is None:
             return _render_login(
                 request, username=username, error="invalid_credentials", status_code=401
@@ -149,7 +149,7 @@ async def login(
         body = LoginRequest.model_validate_json(await request.body())
     except PydanticValidationError as exc:
         raise RequestValidationError(exc.errors()) from exc
-    user = UserRepository(db).authenticate(body.username, body.password)
+    user = UserRepository(db, None).authenticate(body.username, body.password)
     if user is None:
         raise HTTPException(
             status_code=401,
@@ -203,7 +203,7 @@ def first_run_status(db: Session = Depends(get_db)) -> dict[str, bool]:
     ``setup_needed`` is true while the users table is empty. Public: no
     prior session exists before setup.
     """
-    return {"setup_needed": UserRepository(db).count() == 0}
+    return {"setup_needed": UserRepository(db, None).count() == 0}
 
 
 @router.post("/first-run")
@@ -219,7 +219,7 @@ def first_run(
     Pre-setup ONLY (documented choice): once ANY user exists the bootstrap
     is closed and this endpoint answers 409. There is no re-openable setup
     path — accounts are deactivated, never deleted (UserRepository
-    .set_active is the users-table "delete"), so under normal operation the
+    .set_active_admin is the users-table "delete"), so under normal operation the
     table cannot become empty again, and a re-openable bootstrap would be
     an unauthenticated privilege-escalation hole. On success a session
     cookie is issued (same SessionManager as login) so the caller is signed
@@ -227,7 +227,7 @@ def first_run(
     success the CSRF token is ROTATED (``_rotate_csrf``) and the cookie set
     ``Secure`` when the request is over TLS (``is_secure_request``).
     """
-    repo = UserRepository(db)
+    repo = UserRepository(db, None)
     if repo.count() > 0:
         raise HTTPException(
             status_code=409, detail=translate("auth.setup_completed", request_locale(request))

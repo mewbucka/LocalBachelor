@@ -130,7 +130,7 @@ Tasks marked (post-MVP) may land after.
 - [x] 1.5 Admin page: create/deactivate users, reset passwords.
 - [x] 1.6 Security baseline: cookie flags, CSRF middleware, bind default
       127.0.0.1, LAN opt-in warning.
-- [ ] 1.7 Tenant isolation: ownership filters in all repositories; job
+- [x] 1.7 Tenant isolation: ownership filters in all repositories; job
       owner re-check; negative tests A≠B across all entities.
 - [ ] 1.8 Docs sync.
 

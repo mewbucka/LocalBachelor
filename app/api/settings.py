@@ -55,7 +55,7 @@ def update_settings(
         raise HTTPException(status_code=401, detail=translate("auth.not_signed_in", locale))
     if body.theme is None:
         raise HTTPException(status_code=422, detail=translate("settings.no_settings", locale))
-    if not SettingsRepository(db).set(user.id, THEME_SETTING_KEY, body.theme, actor=user):
+    if not SettingsRepository(db, user.id, actor=user).set(THEME_SETTING_KEY, body.theme):
         # The caller's own row is always writable by an active caller; a
         # False here means the account vanished or was deactivated mid-
         # request.

@@ -25,7 +25,7 @@ def app(config_file):
     # creates them and seeds users directly.
     Base.metadata.create_all(application.state.engine)
     session = application.state.session_factory()
-    repo = UserRepository(session)
+    repo = UserRepository(session, None)
     repo.create("admin", "admin-pass", role="admin")
     repo.create("alice", "alice-pass", role="user")
     session.commit()
@@ -67,10 +67,10 @@ def test_login_unknown_user_401(client):
 
 def test_login_inactive_user_401(client, app):
     session = app.state.session_factory()
-    repo = UserRepository(session)
+    repo = UserRepository(session, None)
     alice = repo.get_by_username("alice")
     admin = repo.get_by_username("admin")
-    repo.set_active(alice.id, False, owner_id=admin.id)
+    UserRepository(session, admin.id).set_active_admin(alice.id, False)
     session.commit()
     session.close()
     response = client.post("/api/auth/login", json={"username": "alice", "password": "alice-pass"})

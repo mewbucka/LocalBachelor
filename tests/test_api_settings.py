@@ -30,7 +30,7 @@ def app(config_file) -> FastAPI:
     application = create_app(config_file)
     Base.metadata.create_all(application.state.engine)
     session = application.state.session_factory()
-    repo = UserRepository(session)
+    repo = UserRepository(session, None)
     repo.create("admin", "admin-pass", role="admin")
     repo.create("alice", "alice-pass", role="user")
     session.commit()
@@ -118,8 +118,8 @@ def test_put_settings_persists_to_settings_row(client, app):
     )
     session = app.state.session_factory()
     try:
-        alice = UserRepository(session).get_by_username("alice")
-        assert SettingsRepository(session).get(alice.id, "theme") == "dark"
+        alice = UserRepository(session, None).get_by_username("alice")
+        assert SettingsRepository(session, alice.id, actor=alice).get("theme") == "dark"
     finally:
         session.close()
 
@@ -141,7 +141,7 @@ def test_put_settings_toggles_between_themes(client, app):
     assert light.json() == {"theme": "light"}
     session = app.state.session_factory()
     try:
-        alice = UserRepository(session).get_by_username("alice")
-        assert SettingsRepository(session).get(alice.id, "theme") == "light"
+        alice = UserRepository(session, None).get_by_username("alice")
+        assert SettingsRepository(session, alice.id, actor=alice).get("theme") == "light"
     finally:
         session.close()

@@ -44,7 +44,7 @@ def update_lang(
     locale = request_locale(request)
     if user is None:
         raise HTTPException(status_code=401, detail=translate("auth.not_signed_in", locale))
-    if not UserRepository(db).set_lang(user.id, body.lang, owner_id=user.id):
+    if not UserRepository(db, user.id).set_lang(body.lang):
         # Unreachable in practice (lang validated by the model, the row is
         # the caller's own): fail loudly instead of a silent no-op.
         raise HTTPException(status_code=500, detail=translate("error.internal", locale))

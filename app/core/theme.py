@@ -53,7 +53,7 @@ def resolve_theme(request: Request, db: Session | None) -> str:
             # Per-user settings win: the own row first, then the
             # admin-default row (architecture §3), mirroring the
             # users.lang override in resolve_locale.
-            value = SettingsRepository(db).get_for_user(user.id, THEME_SETTING_KEY)
+            value = SettingsRepository(db, user.id, actor=user).get_effective(THEME_SETTING_KEY)
             if isinstance(value, str) and value in SUPPORTED_THEMES:
                 return value
             return DEFAULT_THEME

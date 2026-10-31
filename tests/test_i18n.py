@@ -53,7 +53,7 @@ def app(config_file) -> FastAPI:
     application = create_app(config_file)
     Base.metadata.create_all(application.state.engine)
     session = application.state.session_factory()
-    repo = UserRepository(session)
+    repo = UserRepository(session, None)
     repo.create("admin", "admin-pass", role="admin")
     repo.create("alice", "alice-pass", role="user")
     repo.create("petr", "petr-pass", role="user", lang="uk")
@@ -162,10 +162,10 @@ def test_deactivated_user_lang_falls_back_to_cookie(client, app):
     client.post("/api/auth/login", json={"username": "petr", "password": "petr-pass"})
     session = app.state.session_factory()
     try:
-        repo = UserRepository(session)
+        repo = UserRepository(session, None)
         petr = repo.get_by_username("petr")
         admin = repo.get_by_username("admin")
-        repo.set_active(petr.id, False, owner_id=admin.id)
+        UserRepository(session, admin.id).set_active_admin(petr.id, False)
         session.commit()
     finally:
         session.close()
@@ -282,7 +282,7 @@ def test_post_lang_syncs_users_lang_when_signed_in(client, app):
     client.post("/lang", data={"lang": "uk"})
     session = app.state.session_factory()
     try:
-        assert UserRepository(session).get_by_username("alice").lang == "uk"
+        assert UserRepository(session, None).get_by_username("alice").lang == "uk"
     finally:
         session.close()
 
@@ -312,7 +312,7 @@ def test_patch_lang_updates_preference_and_locale(client, app):
     assert response.json()["lang"] == "uk"
     session = app.state.session_factory()
     try:
-        assert UserRepository(session).get_by_username("alice").lang == "uk"
+        assert UserRepository(session, None).get_by_username("alice").lang == "uk"
     finally:
         session.close()
     # users.lang now overrides the cookie on every page (architecture §14).
