@@ -169,6 +169,23 @@ context, and "Add to sources" is an explicit per-card action.
 with UI warning), `port`. All other settings live in the DB and are edited
 via the UI.
 
+## Cookies
+
+All cookies use `SameSite=Lax` and get the `Secure` flag when the request
+arrives over HTTPS (direct scheme or a proxy's `X-Forwarded-Proto`), so
+they work over plain HTTP on the default loopback bind.
+
+| Cookie | Purpose | httpOnly | Max age |
+|---|---|---|---|
+| `lb_session` | Auth session (compact signed token); a fresh token is issued on every login | yes | 7 days |
+| `lb_csrf` | CSRF double-submit token; **JS-readable by design** — the page copies it into the `X-CSRF-Token` header (or a hidden form field) on mutating calls | no | 30 days |
+| `lb_lang` | UI language preference (en/uk) | yes | 365 days |
+| `lb_theme` | Theme preference (light/dark) | yes | 365 days |
+
+`lb_csrf` is an unsigned random value held only in the client's cookie
+(double-submit; it is not a secret) and is rotated whenever a session is
+established. See architecture.md §13 for the security model.
+
 ## Deployment
 
 Before deploying to a target Linux server, run the environment probe ON
@@ -212,5 +229,6 @@ sample documents are not ingested into a live DB yet. The eval runner
 
 ## Status
 
-Phase 0 (bootstrap) complete — see `roadmap.md` for the task list and
-`architecture.md` for all normative contracts.
+Phase 1 complete (users, auth, i18n, security baseline, tenant isolation)
+— see `roadmap.md` for the task list and `architecture.md` for all
+normative contracts. Phase 2 (settings & local-first providers) is next.

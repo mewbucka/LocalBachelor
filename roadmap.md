@@ -132,7 +132,7 @@ Tasks marked (post-MVP) may land after.
       127.0.0.1, LAN opt-in warning.
 - [x] 1.7 Tenant isolation: ownership filters in all repositories; job
       owner re-check; negative tests A≠B across all entities.
-- [ ] 1.8 Docs sync.
+- [x] 1.8 Docs sync.
 
 ## Phase 2 — Settings & local-first providers (BYOK core)
 

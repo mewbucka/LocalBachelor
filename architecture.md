@@ -31,8 +31,9 @@ Docs-sync tasks at the end of each phase keep this file consistent.
 
 ## 2. Layout
 
-Repository layout. Phase 0 is complete: entries with a Phase 0 task number
-exist now; entries for later phases appear as their roadmap tasks land.
+Repository layout. Phases 0 and 1 are complete: entries with a Phase 0 or
+Phase 1 task number exist now; entries for later phases appear as their
+roadmap tasks land.
 
 ```
 LocalBachelor/
@@ -44,6 +45,7 @@ LocalBachelor/
 ├── .gitattributes             # (0.5) *.sh forced to LF so check.sh runs on every platform
 ├── config.example.yaml        # (0.2) secret_key, settings_key, db_path, data_dir, host, port
 ├── config.yaml                # gitignored; ONLY bootstrap secrets + host/port
+├── alembic/                   # (1.1) migrations: 0001 users, 0002 settings
 ├── evals/                     # (0.2) 2 sample docs (UA+EN) + QA fixtures; run files (4.4)
 │   ├── docs/
 │   └── fixtures/
@@ -53,15 +55,28 @@ LocalBachelor/
 ├── deploy/
 │   └── local-bachelor.service # (0.4) systemd unit; single-line ExecStart mirroring the CLI
 ├── app/
-│   ├── main.py                # (0.3) app factory + CLI (python -m app.main --config)
+│   ├── main.py                # (0.3) app factory + CLI; (1.4) layout wiring;
+│   │                          # (1.6) CSRF middleware, LAN opt-in warning
 │   ├── config.py              # (0.3) bootstrap config loader (config.yaml only, no env)
 │   ├── core/
 │   │   ├── logging.py         # (0.3) single-line JSON logging (LOG_LEVEL)
-│   │   └── errors.py          # (0.3) JSON error handlers, correlation_id
+│   │   ├── errors.py          # (0.3) JSON error handlers, correlation_id
+│   │   ├── auth.py            # (1.1) signed session cookie (lb_session);
+│   │   │                      # (1.6) is_secure_request (scheme / X-Forwarded-Proto)
+│   │   ├── passwords.py       # (1.1) argon2id hash/verify
+│   │   ├── csrf.py            # (1.6) lb_csrf double-submit token; rotated on login
+│   │   └── theme.py           # (1.4) theme resolution (settings → lb_theme → light)
 │   ├── db/
-│   │   └── engine.py          # (0.3) engine (WAL, busy_timeout, foreign_keys) + session factory
-│   ├── models/                # (Phase 1) SQLAlchemy models + alembic/
-│   ├── repositories/          # (Phase 1+) every query owner/project-scoped
+│   │   ├── engine.py          # (0.3) engine (WAL, busy_timeout, foreign_keys) + session factory
+│   │   └── session.py         # (1.1) per-request DB session scope (get_db)
+│   ├── models/                # (1.1) users; (1.4) settings (owner_id nullable); Base
+│   ├── repositories/
+│   │   ├── base.py            # (1.7) TenantScopedRepository: owner_id required,
+│   │   │                      # class-level tenant column, _scoped() on every query
+│   │   ├── users.py           # (1.1) identity + admin scope; (1.7) owner binding,
+│   │   │                      # last-active-admin guard
+│   │   └── settings.py        # (1.4) personal + admin-default namespaces;
+│   │                          # (1.7) actor-checked binding, typed JSON values
 │   ├── services/              # (Phase 3+) chunker, indexer, retrieval, chat pipeline,
 │   │                          # citation validator, eval runner, job queue
 │   ├── providers/
@@ -69,12 +84,39 @@ LocalBachelor/
 │   │   ├── embeddings/        # (Phase 2) OpenAI-compatible HTTP (+ post-MVP)
 │   │   ├── search/            # (Phase 2) SearXNG, DuckDuckGo (+ post-MVP)
 │   │   └── vectorstore/       # (Phase 3) SQLiteVecStore; Qdrant later
-│   ├── api/                   # (Phase 1+) FastAPI routers (see API contracts)
-│   ├── i18n/                  # (Phase 1) en/uk catalogs
-│   ├── templates/             # (Phase 1) Jinja2, single CSS, vanilla JS + HTMX + Alpine
-│   └── static/                # (Phase 1)
-└── tests/                     # mirrors app/ (Phase 0: config, logging, main, probe_env);
-                               # negative isolation tests mandatory from Phase 1
+│   ├── api/
+│   │   ├── auth.py            # (1.1) login/logout; (1.2) first-run wizard API
+│   │   ├── setup.py           # (1.2) first-run wizard page
+│   │   ├── pages.py           # (1.4) three-pane shell pages
+│   │   ├── users.py           # (1.3) PATCH /api/users/lang (owner-scoped)
+│   │   ├── lang.py            # (1.3) lb_lang cookie switcher
+│   │   ├── theme.py           # (1.4) lb_theme cookie switcher
+│   │   ├── settings.py        # (1.4) minimal settings store
+│   │   └── admin.py           # (1.5) create/deactivate users, reset passwords
+│   ├── i18n/                  # (1.3) en/uk catalogs, _(), locale resolution
+│   ├── templates/             # (1.2) setup; (1.4) base/login/home; (1.5) admin;
+│   │                          # Jinja2, single CSS, vanilla JS + HTMX + Alpine
+│   └── static/                # (1.4) style.css (single CSS, theme variables)
+└── tests/                     # mirrors app/; the per-entity A≠B negative suites are
+                               # mandatory (architecture §11)
+    ├── conftest.py            # (1.1) config + temp-DB session fixtures
+    ├── test_config.py         # (0.3)
+    ├── test_logging.py        # (0.3)
+    ├── test_main.py           # (0.3) app factory, /healthz
+    ├── test_probe_env.py      # (0.6)
+    ├── test_core_auth.py      # (1.1) signed session token
+    ├── test_api_auth.py       # (1.1) login/logout, session cookie
+    ├── test_api_first_run.py  # (1.2) first-run wizard
+    ├── test_i18n.py           # (1.3) en/uk catalogs, _(), switcher
+    ├── test_pages.py          # (1.4) three-pane shell
+    ├── test_css.py            # (1.4) single CSS, light/dark theme variables
+    ├── test_theme.py          # (1.4) lb_theme cookie, theme resolution
+    ├── test_api_settings.py   # (1.4) settings routes
+    ├── test_api_admin.py      # (1.5) admin user management
+    ├── test_security_baseline.py # (1.6) cookie flags, CSRF middleware, LAN
+    ├── test_repositories_users.py    # (1.7) A≠B negative suite: users
+    ├── test_repositories_settings.py # (1.7) A≠B negative suite: settings
+    └── test_isolation_convention.py  # (1.7) scoped base + owner_id + suite existence
 ```
 
 Runtime data (gitignored): `data_dir/` holds the SQLite DB (WAL) and any
@@ -433,6 +475,40 @@ grounded on.
   read / update / delete any entity of user B — projects, sources,
   chunks, notes, jobs, settings.
 
+Implementation notes (1.7):
+- `TenantScopedRepository` (app/repositories/base.py): `owner_id` is a
+  required constructor argument (no default — there is no such thing as an
+  unscoped repository instance). Subclasses declare `model` and
+  `tenant_column`; the base refuses to construct a subclass that leaves
+  either unset (it never guesses how a tenant is mapped). `tenant_column`
+  holds a SQLAlchemy `InstrumentedAttribute`, so the base reads it at
+  CLASS level (`type(self).tenant_column`): instance-level access would
+  invoke its `__get__` and crash before mapper configuration. `_scoped()`
+  is the only path to the tenant filter (`tenant_column == owner_id`; an
+  `owner_id` column renders `IS NULL` for the admin-default namespace, a
+  primary key matches nothing); administrative operations use explicitly
+  named `*_admin` methods plus their guard, never a "skip the filter"
+  flag. A tenant-scoped operation on an unbound instance fails loudly
+  with `TenantScopeError` instead of silently matching nothing.
+- `UserRepository`: identity table — `tenant_column = User.id` (the row is
+  its own tenant); unscoped identity-plane methods (`count`,
+  `authenticate`, `get_by_username`) plus the last-active-admin guard in
+  `set_active`. `SettingsRepository`: `tenant_column = Setting.owner_id`
+  (NULL = admin-default namespace) plus an actor check at construction
+  (a personal namespace requires owner match + an active actor).
+- Convention test (tests/test_isolation_convention.py): every
+  `*Repository` class in the package derives from `TenantScopedRepository`;
+  every scoped constructor requires `owner_id` with no default; and the
+  A≠B negative suite for each entity in `REQUIRED_NEGATIVE_SUITES` exists
+  and imports cleanly. A new repository module is picked up automatically
+  (the first two checks); a new entity's suite must be added to the dict
+  when the entity lands.
+- A≠B suites landed in 1.7: `users` (tests/test_repositories_users.py),
+  `settings` (tests/test_repositories_settings.py). Remaining entities
+  land with their roadmap tasks and are then added to
+  `REQUIRED_NEGATIVE_SUITES`: projects → 3.2, sources → 3.6, chunks →
+  3.7/3.8, jobs (incl. the runtime owner re-check) → 3.5, notes → 5.5.
+
 ## 12. API contracts
 
 REST + SSE under `/api`; session-cookie auth (all endpoints except
@@ -472,6 +548,42 @@ All list/detail endpoints return only the caller's tenant rows.
 - Bind: **default `127.0.0.1`**; LAN access is an explicit opt-in with a
   UI warning.
 - argon2id password hashing; session-based auth.
+
+Implementation notes (1.6):
+- `lb_session`: compact signed token (uid/iat/exp + HMAC-SHA256), no
+  server-side session table; httpOnly, `SameSite=Lax`, path `/`, 7-day
+  TTL; a fresh token is issued on every login (rotation).
+- `lb_csrf`: unsigned random value held only in the client's cookie (no
+  secret); validated server-side only by double-submit comparison via
+  `hmac.compare_digest`, fail-closed. SameSite=Lax, 30-day TTL.
+  **JS-readable by design** (`httpOnly=False`): the page's JS reads the
+  cookie to populate the `X-CSRF-Token` header (a hidden `csrf_token`
+  form field for form POSTs); another origin cannot read the cookie, so
+  JS visibility does not weaken it. The token is rotated whenever a
+  session is established (login / first-run / setup success) and left
+  stable otherwise (no re-issue, no multi-tab race).
+- `Secure` is conditional on the request — scheme `https`, else a trusted
+  proxy's `X-Forwarded-Proto` (first value, case-insensitive), via
+  `is_secure_request()` — so cookies work over plain HTTP on the default
+  loopback bind and gain `Secure` behind TLS.
+- CSRF middleware: the check is enforced only on the listed protected
+  paths — form POSTs (any caller): `/api/auth/login`, `/api/auth/logout`,
+  `/setup` (pre-setup only), `/api/admin/users` (+ `/api/admin/users/{id}`
+  prefix); signed-in JSON (HTMX/fetch): `PUT /api/settings`,
+  `PATCH /api/users/lang`. There is no separate exemption list: unlisted
+  paths (incl. `/healthz`) are simply not checked. A failed check returns
+  a localized 403 JSON (a user middleware cannot `raise HTTPException`).
+  The middleware is registered first = innermost (request path: session →
+  theme → i18n → csrf → routes), so its `Set-Cookie` is first on the wire.
+- Body caching: for a protected form POST the middleware calls
+  `request.body()` before `request.form()` — Starlette's
+  BaseHTTPMiddleware forwards a body downstream only if `body()` was
+  called on the dispatch request; reading via `form()`/`stream()` would
+  starve the downstream route's own `Form(...)` fields. Multipart
+  handling is an open decision (§17 item 8).
+- LAN: a non-loopback bind host (loopback = 127.0.0.1, localhost, ::1)
+  sets `app.state.lan_exposed`, logs a startup WARNING, and renders a
+  `role=alert` banner on every page.
 
 **Secrets (bootstrap only, from `config.yaml`):**
 - `secret_key` — session signing / CSRF.
@@ -664,5 +776,10 @@ Target-server environment probe — RESOLVED
    | python | >= 3.12 | _pending_ | _pending_ |
    | sqlite_wal | WAL journal mode | _pending_ | _pending_ |
    | fts5 | FTS5 virtual tables | _pending_ | _pending_ |
-   | sqlite_vec | extension + vec0 | _pending_ | _pending_ |
-   | fts5_icu | optional (unicode61 fallback) | _pending_ | _pending_ |
+    | sqlite_vec | extension + vec0 | _pending_ | _pending_ |
+    | fts5_icu | optional (unicode61 fallback) | _pending_ | _pending_ |
+
+8. **CSRF multipart handling** — the CSRF middleware buffers mutating
+   request bodies (`request.body()` before parse; see §13). Decide
+   multipart handling — `X-CSRF-Token` header only for multipart uploads
+   and/or a max upload size — before the Phase 3 upload task.
