@@ -544,7 +544,9 @@ All list/detail endpoints return only the caller's tenant rows.
 
 **Baseline (Phase 1):**
 - Cookies: `httpOnly` + `SameSite=Lax` (Secure when behind TLS).
-- CSRF middleware protecting mutating HTMX requests (double-submit token).
+- CSRF middleware: **deny-by-default** — every mutating request
+  (POST/PUT/PATCH/DELETE) is checked unless explicitly exempted
+  (double-submit token).
 - Bind: **default `127.0.0.1`**; LAN access is an explicit opt-in with a
   UI warning.
 - argon2id password hashing; session-based auth.
@@ -566,15 +568,22 @@ Implementation notes (1.6):
   proxy's `X-Forwarded-Proto` (first value, case-insensitive), via
   `is_secure_request()` — so cookies work over plain HTTP on the default
   loopback bind and gain `Secure` behind TLS.
-- CSRF middleware: the check is enforced only on the listed protected
-  paths — form POSTs (any caller): `/api/auth/login`, `/api/auth/logout`,
-  `/setup` (pre-setup only), `/api/admin/users` (+ `/api/admin/users/{id}`
-  prefix); signed-in JSON (HTMX/fetch): `PUT /api/settings`,
-  `PATCH /api/users/lang`. There is no separate exemption list: unlisted
-  paths (incl. `/healthz`) are simply not checked. A failed check returns
-  a localized 403 JSON (a user middleware cannot `raise HTTPException`).
-  The middleware is registered first = innermost (request path: session →
-  theme → i18n → csrf → routes), so its `Set-Cookie` is first on the wire.
+- CSRF middleware: **deny-by-default** — the check runs on every mutating
+  request (method in POST/PUT/PATCH/DELETE) unless its (method, path) is in
+  the explicit `_CSRF_EXEMPT` map, so a newly added mutating endpoint is
+  protected automatically (there is no allow-list to remember to extend).
+  Each exemption is keyed by (method, path) template and carries a
+  justification. Enforcement is split by caller kind: a form-encoded
+  mutating request is checked for **any** caller, while a JSON/non-form
+  mutating request is checked **only** for a signed-in caller (an anonymous
+  caller is stopped by the route's own 401 first); `/setup` is checked only
+  while pre-setup. A failed check returns a localized 403 JSON (a user
+  middleware cannot `raise HTTPException`). The middleware is registered
+  first = innermost (request path: session → theme → i18n → csrf → routes),
+  so its `Set-Cookie` is first on the wire. The posture is pinned by
+  `tests/test_security_baseline.py::test_csrf_default_deny_covers_every_mutating_route`,
+  which sweeps the app's routes, asserts the protected method set, and
+  self-polices `_CSRF_EXEMPT` (every entry justified and non-stale).
 - Body caching: for a protected form POST the middleware calls
   `request.body()` before `request.form()` — Starlette's
   BaseHTTPMiddleware forwards a body downstream only if `body()` was
@@ -776,10 +785,21 @@ Target-server environment probe — RESOLVED
    | python | >= 3.12 | _pending_ | _pending_ |
    | sqlite_wal | WAL journal mode | _pending_ | _pending_ |
    | fts5 | FTS5 virtual tables | _pending_ | _pending_ |
-    | sqlite_vec | extension + vec0 | _pending_ | _pending_ |
-    | fts5_icu | optional (unicode61 fallback) | _pending_ | _pending_ |
+   | sqlite_vec | extension + vec0 | _pending_ | _pending_ |
+   | fts5_icu | optional (unicode61 fallback) | _pending_ | _pending_ |
 
 8. **CSRF multipart handling** — the CSRF middleware buffers mutating
    request bodies (`request.body()` before parse; see §13). Decide
    multipart handling — `X-CSRF-Token` header only for multipart uploads
    and/or a max upload size — before the Phase 3 upload task.
+9. **CSRF enforcement model** — RESOLVED. Inverted from a positive
+   allow-list to **deny-by-default**: the middleware checks every mutating
+   request (POST/PUT/PATCH/DELETE) unless the (method, path) is in the
+   explicit `_CSRF_EXEMPT` map (currently empty), so a newly added mutating
+   endpoint is protected by default (nothing to remember to allow-list).
+   Enforcement splits by caller kind — form-encoded → any caller;
+   JSON/non-form → signed-in only; `/setup` → pre-setup only (see §13).
+   The posture is pinned by
+   `tests/test_security_baseline.py::test_csrf_default_deny_covers_every_mutating_route`,
+   which sweeps the app's routes, asserts the protected method set, and
+   self-polices `_CSRF_EXEMPT`. **Status:** RESOLVED (1.6 fixup, 2026-11-11).

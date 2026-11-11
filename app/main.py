@@ -43,36 +43,28 @@ logger = logging.getLogger(__name__)
 #: The default bind is 127.0.0.1, so the flag is off out of the box.
 _LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
 
-#: Form-encoded POST endpoints the CSRF double-submit check enforces on,
-#: regardless of session state — a cross-site page can only POST a
-#: form-encoded body, so these are the endpoints it could forge.
-_CSRF_PROTECTED_FORM_PATHS = {
-    "/api/auth/login",
-    "/api/auth/logout",
-    "/setup",
-    "/api/admin/users",
-}
+#: Mutating HTTP methods the CSRF double-submit check enforces on.
+#: Deny-by-default (fixup 1.6): a mutating request is protected the moment
+#: its route lands; the only way to remove that protection is an explicit,
+#: justified entry on the exemption list below — never an omission from a
+#: positive protected list. See §17 item 9 and the coverage test in
+#: tests/test_security_baseline.py.
+_CSRF_MUTATING_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
-#: JSON (HTMX/fetch) endpoints the double-submit check enforces on, but only
-#: for a SIGNED-IN caller (an anonymous caller is rejected by the route's
-#: own 401 before any state is mutated, so it is not enforced here). Keyed
-#: by (method, path).
-_CSRF_PROTECTED_JSON = {
-    ("PUT", "/api/settings"),
-    ("PATCH", "/api/users/lang"),
-}
+#: (method, path) -> justification for entries exempt from CSRF enforcement.
+#: Starts empty: a public GET such as /healthz needs no entry (it is not a
+#: mutating method, so it is never enforced). Add an entry ONLY with a
+#: non-empty justification of why the endpoint is safe to leave unprotected;
+#: the coverage test in tests/test_security_baseline.py fails the gate if a
+#: mutating route is exempt without a justification, or if a future mutating
+#: route lands uncovered. A dict (not a set) so every exemption carries its
+#: justification as the value.
+_CSRF_EXEMPT: dict[tuple[str, str], str] = {}
 
 
-def _protected_form_path(path: str) -> bool:
-    """True for a form POST path the CSRF check enforces on.
-
-    ``/api/admin/users`` (create) is matched exactly; the per-account
-    endpoint ``/api/admin/users/{id}`` is a prefix match. ``/setup`` is
-    reported here but enforced only while pre-setup (see the middleware).
-    """
-    if path in _CSRF_PROTECTED_FORM_PATHS:
-        return True
-    return path.startswith("/api/admin/users/")
+def _csrf_exempt(method: str, path: str) -> bool:
+    """True if (method, path) is on the explicit CSRF exemption list."""
+    return (method, path) in _CSRF_EXEMPT
 
 
 def _no_users(app: FastAPI) -> bool:
@@ -187,33 +179,45 @@ def create_app(config_path: str | Path = "config.yaml") -> FastAPI:
         path = request.url.path
         method = request.method
 
-        # (a) Form-encoded POSTs to the protected paths: enforce the
-        #     double-submit on the hidden csrf_token field for ANY caller
-        #     (anonymous login/first-run/setup and signed-in logout/admin
-        #     alike). /setup is enforced only while pre-setup — a post-setup
-        #     POST is a no-op 303 redirect, so it needs no token.
-        if method == "POST" and is_form_encoded(request) and _protected_form_path(path):
-            if path != "/setup" or _no_users(request.app):
-                # Cache the raw body BEFORE parsing it. Starlette's
-                # BaseHTTPMiddleware only forwards a request body to the
-                # downstream app when body() was called on the dispatch
-                # request; request.form() reads via stream(), which leaves the
-                # body uncached and would starve the downstream route's own
-                # Form(...) fields (see _CachedRequest.wrapped_receive).
-                await request.body()
-                form = await request.form()
-                if not manager.validate_double_submit(request, _form_field(form, CSRF_FORM_FIELD)):
-                    return _csrf_forbidden(request)
-
-        # (b) JSON (HTMX/fetch) calls to the protected JSON endpoints:
-        #     enforce the X-CSRF-Token header, but ONLY for a signed-in
-        #     caller — an anonymous caller is rejected by the route's own
-        #     401 before any state is mutated, so it is not enforced here.
-        if (method, path) in _CSRF_PROTECTED_JSON:
-            signed_in = getattr(request.state, "session_user_id", None) is not None
-            if signed_in and not is_form_encoded(request):
-                if not manager.validate_double_submit(request, request.headers.get(CSRF_HEADER)):
-                    return _csrf_forbidden(request)
+        # Deny-by-default (fixup 1.6): enforce the double-submit check on
+        # every mutating method (POST/PUT/PATCH/DELETE) except a (method,
+        # path) on the explicit exemption list. A new mutating route is
+        # protected the moment it lands; only a deliberate, justified
+        # exemption removes it (the coverage test in
+        # tests/test_security_baseline.py fails the gate if a mutating route
+        # is left uncovered). The token is accepted from the X-CSRF-Token
+        # header (JSON) or the csrf_token form field (form POSTs).
+        if method in _CSRF_MUTATING_METHODS and not _csrf_exempt(method, path):
+            if is_form_encoded(request):
+                # Form POSTs are enforced for ANY caller (a cross-site page
+                # can auto-submit a form-encoded body, so this covers
+                # anonymous login/first-run/setup and signed-in logout/admin
+                # alike). /setup is enforced only while pre-setup — a
+                # post-setup POST is a no-op 303 redirect that mutates
+                # nothing, so it needs no token.
+                if path != "/setup" or _no_users(request.app):
+                    # Cache the raw body BEFORE parsing it. Starlette's
+                    # BaseHTTPMiddleware only forwards a request body to the
+                    # downstream app when body() was called on the dispatch
+                    # request; request.form() reads via stream(), which leaves
+                    # the body uncached and would starve the downstream route's
+                    # own Form(...) fields (see _CachedRequest.wrapped_receive).
+                    await request.body()
+                    form = await request.form()
+                    form_token = _form_field(form, CSRF_FORM_FIELD)
+                    if not manager.validate_double_submit(request, form_token):
+                        return _csrf_forbidden(request)
+            else:
+                # JSON (HTMX/fetch) mutating calls: enforce the X-CSRF-Token
+                # header, but ONLY for a signed-in caller — an anonymous
+                # caller is rejected by the route's own 401 before any state
+                # is mutated, so it is not enforced here (401-first is
+                # preserved).
+                signed_in = getattr(request.state, "session_user_id", None) is not None
+                if signed_in:
+                    header_token = request.headers.get(CSRF_HEADER)
+                    if not manager.validate_double_submit(request, header_token):
+                        return _csrf_forbidden(request)
 
         response = await call_next(request)
 

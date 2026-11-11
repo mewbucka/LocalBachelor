@@ -238,9 +238,10 @@ def test_authenticated_header_uses_lang_api(client):
 
 
 def test_post_lang_sets_cookie_and_redirects_back(fresh_client):
+    fresh_client.get("/setup")  # mint the lb_csrf double-submit cookie
     response = fresh_client.post(
         "/lang",
-        data={"lang": "uk"},
+        data={"lang": "uk", "csrf_token": _csrf(fresh_client)},
         headers={"Referer": "http://testserver/setup"},
         follow_redirects=False,
     )
@@ -255,15 +256,21 @@ def test_post_lang_sets_cookie_and_redirects_back(fresh_client):
 
 
 def test_post_lang_without_referer_redirects_to_root(fresh_client):
-    response = fresh_client.post("/lang", data={"lang": "uk"}, follow_redirects=False)
+    fresh_client.get("/setup")  # mint the lb_csrf double-submit cookie
+    response = fresh_client.post(
+        "/lang",
+        data={"lang": "uk", "csrf_token": _csrf(fresh_client)},
+        follow_redirects=False,
+    )
     assert response.status_code == 303
     assert response.headers["location"] == "/"
 
 
 def test_post_lang_cross_origin_referer_ignored(fresh_client):
+    fresh_client.get("/setup")  # mint the lb_csrf double-submit cookie
     response = fresh_client.post(
         "/lang",
-        data={"lang": "uk"},
+        data={"lang": "uk", "csrf_token": _csrf(fresh_client)},
         headers={"Referer": "http://evil.example/setup"},
         follow_redirects=False,
     )
@@ -272,14 +279,19 @@ def test_post_lang_cross_origin_referer_ignored(fresh_client):
 
 
 def test_post_lang_tampered_value_falls_back_to_default(fresh_client):
-    response = fresh_client.post("/lang", data={"lang": "fr"}, follow_redirects=False)
+    fresh_client.get("/setup")  # mint the lb_csrf double-submit cookie
+    response = fresh_client.post(
+        "/lang",
+        data={"lang": "fr", "csrf_token": _csrf(fresh_client)},
+        follow_redirects=False,
+    )
     assert "lb_lang=en" in response.headers.get("set-cookie", "")
     assert 'lang="en"' in fresh_client.get("/_i18n_probe").text
 
 
 def test_post_lang_syncs_users_lang_when_signed_in(client, app):
     client.post("/api/auth/login", json={"username": "alice", "password": "alice-pass"})
-    client.post("/lang", data={"lang": "uk"})
+    client.post("/lang", data={"lang": "uk", "csrf_token": _csrf(client)})
     session = app.state.session_factory()
     try:
         assert UserRepository(session, None).get_by_username("alice").lang == "uk"

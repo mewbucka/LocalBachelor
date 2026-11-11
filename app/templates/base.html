@@ -67,6 +67,7 @@
       </script>
       {% else %}
       <form class="lb-inline-form" method="post" action="/theme">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="lb-toggle-btn"
                 name="theme" value="{{ 'dark' if request.state.theme == 'light' else 'light' }}"
                 aria-label="{{ _('theme.toggle') }}"
@@ -95,6 +96,7 @@
         </script>
         {% else %}
         <form class="lb-inline-form" method="post" action="/lang">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit" class="lb-toggle-btn" name="lang" value="en" aria-pressed="{{ 'true' if locale == 'en' else 'false' }}">EN</button>
           <button type="submit" class="lb-toggle-btn" name="lang" value="uk" aria-pressed="{{ 'true' if locale == 'uk' else 'false' }}">UK</button>
         </form>

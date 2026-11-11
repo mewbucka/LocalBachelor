@@ -114,7 +114,9 @@ def test_login_accepts_first_run_credentials(client):
         == 200
     )
     response = client.post(
-        "/api/auth/login", json={"username": "boss", "password": PASSWORD}
+        "/api/auth/login",
+        json={"username": "boss", "password": PASSWORD},
+        headers={"X-CSRF-Token": _csrf(client)},
     )
     assert response.status_code == 200
     assert response.json()["role"] == "admin"
@@ -128,6 +130,7 @@ def test_second_first_run_post_409_and_get_flips(client):
     second = client.post(
         "/api/auth/first-run",
         json={"username": "other", "password": PASSWORD, "lang": "uk"},
+        headers={"X-CSRF-Token": _csrf(client)},
     )
     assert second.status_code == 409
     assert second.json()["error"] == "conflict"

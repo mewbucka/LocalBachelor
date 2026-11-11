@@ -13,6 +13,7 @@ from fastapi import Depends, HTTPException
 from fastapi.testclient import TestClient
 
 from app.core.auth import SESSION_COOKIE, get_current_user
+from app.core.csrf import CSRF_COOKIE
 from app.main import create_app
 from app.models import Base
 from app.repositories.users import UserRepository
@@ -79,7 +80,9 @@ def test_login_inactive_user_401(client, app):
 
 def test_logout_expires_cookie(client):
     client.post("/api/auth/login", json={"username": "alice", "password": "alice-pass"})
-    response = client.post("/api/auth/logout")
+    response = client.post(
+        "/api/auth/logout", headers={"X-CSRF-Token": client.cookies[CSRF_COOKIE]}
+    )
     assert response.status_code == 200
     set_cookie = response.headers.get("set-cookie", "")
     assert SESSION_COOKIE in set_cookie and "max-age=0" in set_cookie.lower()
@@ -100,7 +103,7 @@ def test_session_cookie_resolves_current_user(client, app):
     assert response.status_code == 200
     assert response.json() == {"username": "alice"}
     # After logout the session is gone again.
-    client.post("/api/auth/logout")
+    client.post("/api/auth/logout", headers={"X-CSRF-Token": client.cookies[CSRF_COOKIE]})
     assert client.get("/_me").status_code == 401
 
 

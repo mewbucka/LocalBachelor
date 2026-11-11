@@ -27,10 +27,11 @@ from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
 from app.core.csrf import CSRF_COOKIE
-from app.main import create_app
+from app.main import _CSRF_EXEMPT, _CSRF_MUTATING_METHODS, create_app
 from app.models import Base
 from app.repositories.users import UserRepository
 
@@ -296,3 +297,72 @@ def test_lan_startup_warning_logged(tmp_path):
 def test_loopback_startup_does_not_warn(config_file):
     _, records = _build_app(config_file, seed=False)
     assert _lan_warning(records) is False
+
+
+# -- CSRF deny-by-default: mutating-route coverage ----------------------------
+
+
+def _iter_api_routes(routes: list) -> list[APIRoute]:
+    """Flatten a route list into its ``APIRoute`` leaves, across nesting.
+
+    ``include_router`` either splices a router's routes directly into the
+    parent ``.routes`` (older FastAPI) or wraps them in a private
+    ``_IncludedRouter`` around the source router (current FastAPI); a static
+    ``Mount`` subtree nests another ``.routes`` list. This discovers nested
+    containers by attribute (no private names required) and descends into
+    whichever is present, so the sweep sees every endpoint however the
+    routers are wired.
+    """
+    found: list[APIRoute] = []
+    for route in routes:
+        if isinstance(route, APIRoute):
+            found.append(route)
+        nested = (
+            getattr(route, "routes", None),
+            getattr(getattr(route, "original_router", None), "routes", None),
+        )
+        for sub in nested:
+            if sub:
+                found.extend(_iter_api_routes(sub))
+    return found
+
+
+def _mutating_route_pairs(app: FastAPI) -> set[tuple[str, str]]:
+    """Every (method, path) pair for a mutating API route on the live app.
+
+    Walks the app's route tree (see ``_iter_api_routes``) and collects each
+    ``APIRoute`` that declares a mutating method. Non-mutating (GET/HEAD/
+    OPTIONS) routes, the docs routes, and static ``Mount`` entries are skipped.
+    """
+    pairs: set[tuple[str, str]] = set()
+    for route in _iter_api_routes(app.routes):
+        for method in route.methods or ():
+            if method in _CSRF_MUTATING_METHODS:
+                pairs.add((method, route.path))
+    return pairs
+
+
+def test_csrf_default_deny_covers_every_mutating_route(config_file):
+    """Pin the deny-by-default posture so it cannot silently regress.
+
+    The middleware enforces CSRF on every mutating method not in
+    ``_CSRF_EXEMPT`` (app/main.py). These invariants make the posture explicit
+    and self-policing:
+
+    - the protected method set is exactly POST/PUT/PATCH/DELETE (a silent
+      removal would silently weaken the default-deny);
+    - the app still exposes mutating routes (the sweep enumerates something);
+    - no exemption is silent (every entry carries a non-empty justification);
+    - no exemption is stale (every entry names a route+method that exists, so
+      a renamed endpoint cannot leave behind dead, misleading config).
+    """
+    assert _CSRF_MUTATING_METHODS == frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+    mutating = _mutating_route_pairs(create_app(config_file))
+    assert mutating, "no mutating routes found: the coverage sweep is broken"
+
+    for (method, path), reason in _CSRF_EXEMPT.items():
+        assert reason.strip(), f"CSRF exemption for {method} {path} has no justification"
+
+    stale = set(_CSRF_EXEMPT) - mutating
+    assert not stale, f"stale CSRF exemptions (no matching route): {sorted(stale)}"

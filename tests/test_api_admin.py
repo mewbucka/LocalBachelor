@@ -14,6 +14,7 @@ import re
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.csrf import CSRF_COOKIE
 from app.main import create_app
 from app.models import Base
 from app.repositories.users import UserRepository
@@ -27,6 +28,16 @@ def _csrf_from(html: str) -> str:
     match = _CSRF_FIELD.search(html)
     assert match is not None, "the page has no csrf_token hidden field"
     return match.group(1)
+
+
+def _csrf_headers(client) -> dict[str, str]:
+    """The ``X-CSRF-Token`` header carrying the client's double-submit token.
+
+    A successful JSON login rotates the ``lb_csrf`` cookie, so every signed-in
+    client holds the current token; the JSON mutating calls read it back into
+    the header the way an HTMX/fetch client would.
+    """
+    return {"X-CSRF-Token": client.cookies[CSRF_COOKIE]}
 
 
 @pytest.fixture()
@@ -129,7 +140,11 @@ def test_non_admin_page_403(client):
 
 def test_non_admin_cannot_create_403(client):
     _login(client, "alice", "alice-pass")
-    response = client.post("/api/admin/users", json={"username": "eve", "password": "eve-pass-1"})
+    response = client.post(
+        "/api/admin/users",
+        json={"username": "eve", "password": "eve-pass-1"},
+        headers=_csrf_headers(client),
+    )
     assert response.status_code == 403
 
 
@@ -157,6 +172,7 @@ def test_admin_create_user_json_201(client):
     response = client.post(
         "/api/admin/users",
         json={"username": "carol", "password": "carol-pass", "role": "user", "lang": "uk"},
+        headers=_csrf_headers(client),
     )
     assert response.status_code == 201
     body = response.json()
@@ -178,6 +194,7 @@ def test_admin_create_user_admin_role(client):
     response = client.post(
         "/api/admin/users",
         json={"username": "boss", "password": "boss-pass-1", "role": "admin"},
+        headers=_csrf_headers(client),
     )
     assert response.status_code == 201
     assert response.json()["role"] == "admin"
@@ -188,6 +205,7 @@ def test_admin_create_user_duplicate_409(client):
     response = client.post(
         "/api/admin/users",
         json={"username": "alice", "password": "other-pass-1", "role": "user"},
+        headers=_csrf_headers(client),
     )
     assert response.status_code == 409
     assert response.json()["error"] == "conflict"
@@ -196,7 +214,11 @@ def test_admin_create_user_duplicate_409(client):
 
 def test_admin_create_user_short_password_422(client):
     _login(client, "admin", "admin-pass")
-    response = client.post("/api/admin/users", json={"username": "dave", "password": "short"})
+    response = client.post(
+        "/api/admin/users",
+        json={"username": "dave", "password": "short"},
+        headers=_csrf_headers(client),
+    )
     assert response.status_code == 422
     assert response.json()["error"] == "validation_error"
 
@@ -259,7 +281,11 @@ def test_admin_create_user_form_tampered_role_falls_back_to_user(client):
 def test_admin_deactivate_user_json(client):
     _login(client, "admin", "admin-pass")
     alice_id = _id_of(client, "alice")
-    response = client.patch(f"/api/admin/users/{alice_id}", json={"active": False})
+    response = client.patch(
+        f"/api/admin/users/{alice_id}",
+        json={"active": False},
+        headers=_csrf_headers(client),
+    )
     assert response.status_code == 200
     assert response.json()["active"] is False
 
@@ -267,8 +293,17 @@ def test_admin_deactivate_user_json(client):
 def test_admin_reactivate_user_json(client):
     _login(client, "admin", "admin-pass")
     alice_id = _id_of(client, "alice")
-    assert client.patch(f"/api/admin/users/{alice_id}", json={"active": False}).status_code == 200
-    response = client.patch(f"/api/admin/users/{alice_id}", json={"active": True})
+    response = client.patch(
+        f"/api/admin/users/{alice_id}",
+        json={"active": False},
+        headers=_csrf_headers(client),
+    )
+    assert response.status_code == 200
+    response = client.patch(
+        f"/api/admin/users/{alice_id}",
+        json={"active": True},
+        headers=_csrf_headers(client),
+    )
     assert response.status_code == 200
     assert response.json()["active"] is True
 
@@ -276,7 +311,12 @@ def test_admin_reactivate_user_json(client):
 def test_admin_deactivate_user_blocks_login(app, client):
     _login(client, "admin", "admin-pass")
     alice_id = _id_of(client, "alice")
-    assert client.patch(f"/api/admin/users/{alice_id}", json={"active": False}).status_code == 200
+    response = client.patch(
+        f"/api/admin/users/{alice_id}",
+        json={"active": False},
+        headers=_csrf_headers(client),
+    )
+    assert response.status_code == 200
     with TestClient(app) as fresh:
         assert (
             fresh.post("/api/auth/login", json={"username": "alice", "password": "alice-pass"})
@@ -287,7 +327,11 @@ def test_admin_deactivate_user_blocks_login(app, client):
 
 def test_admin_update_missing_target_404(client):
     _login(client, "admin", "admin-pass")
-    response = client.patch("/api/admin/users/999999", json={"active": False})
+    response = client.patch(
+        "/api/admin/users/999999",
+        json={"active": False},
+        headers=_csrf_headers(client),
+    )
     assert response.status_code == 404
     assert response.json()["error"] == "not_found"
 
@@ -295,7 +339,11 @@ def test_admin_update_missing_target_404(client):
 def test_admin_update_empty_body_422(client):
     _login(client, "admin", "admin-pass")
     alice_id = _id_of(client, "alice")
-    response = client.patch(f"/api/admin/users/{alice_id}", json={})
+    response = client.patch(
+        f"/api/admin/users/{alice_id}",
+        json={},
+        headers=_csrf_headers(client),
+    )
     assert response.status_code == 422
     assert response.json()["error"] == "validation_error"
 
@@ -306,7 +354,11 @@ def test_admin_update_empty_body_422(client):
 def test_admin_reset_password_json(app, client):
     _login(client, "admin", "admin-pass")
     alice_id = _id_of(client, "alice")
-    response = client.patch(f"/api/admin/users/{alice_id}", json={"password": "brand-new-pass"})
+    response = client.patch(
+        f"/api/admin/users/{alice_id}",
+        json={"password": "brand-new-pass"},
+        headers=_csrf_headers(client),
+    )
     assert response.status_code == 200
     with TestClient(app) as fresh:
         # The old password no longer works; the new one does.
@@ -328,7 +380,11 @@ def test_admin_reset_password_json(app, client):
 def test_admin_deactivate_last_admin_409(client):
     _login(client, "admin", "admin-pass")
     admin_id = _id_of(client, "admin")
-    response = client.patch(f"/api/admin/users/{admin_id}", json={"active": False})
+    response = client.patch(
+        f"/api/admin/users/{admin_id}",
+        json={"active": False},
+        headers=_csrf_headers(client),
+    )
     assert response.status_code == 409
     assert response.json()["error"] == "conflict"
     assert response.json()["detail"] == "Cannot deactivate the last active administrator"
@@ -337,7 +393,11 @@ def test_admin_deactivate_last_admin_409(client):
 def test_admin_deactivate_ok_with_two_admins(two_admin_client):
     _login(two_admin_client, "admin", "admin-pass")
     admin2_id = _id_of(two_admin_client, "admin2")
-    response = two_admin_client.patch(f"/api/admin/users/{admin2_id}", json={"active": False})
+    response = two_admin_client.patch(
+        f"/api/admin/users/{admin2_id}",
+        json={"active": False},
+        headers=_csrf_headers(two_admin_client),
+    )
     assert response.status_code == 200
     assert response.json()["active"] is False
 

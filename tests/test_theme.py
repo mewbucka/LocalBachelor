@@ -15,11 +15,17 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.testclient import TestClient
 
+from app.core.csrf import CSRF_COOKIE
 from app.core.theme import THEME_COOKIE
 from app.main import create_app
 from app.models import Base
 from app.repositories.settings import SettingsRepository
 from app.repositories.users import UserRepository
+
+
+def _csrf(client) -> str:
+    """The ``lb_csrf`` double-submit token (task 1.6) the client holds."""
+    return client.cookies[CSRF_COOKIE]
 
 
 def _register_probes(application: FastAPI) -> None:
@@ -159,9 +165,10 @@ def test_deactivated_user_theme_falls_back_to_cookie(client, app):
 
 
 def test_post_theme_anonymous_sets_cookie_and_redirects_back(fresh_client):
+    fresh_client.get("/setup")  # mint the lb_csrf double-submit cookie
     response = fresh_client.post(
         "/theme",
-        data={"theme": "dark"},
+        data={"theme": "dark", "csrf_token": _csrf(fresh_client)},
         headers={"Referer": "http://testserver/setup"},
         follow_redirects=False,
     )
@@ -176,15 +183,21 @@ def test_post_theme_anonymous_sets_cookie_and_redirects_back(fresh_client):
 
 
 def test_post_theme_without_referer_redirects_to_root(fresh_client):
-    response = fresh_client.post("/theme", data={"theme": "dark"}, follow_redirects=False)
+    fresh_client.get("/setup")  # mint the lb_csrf double-submit cookie
+    response = fresh_client.post(
+        "/theme",
+        data={"theme": "dark", "csrf_token": _csrf(fresh_client)},
+        follow_redirects=False,
+    )
     assert response.status_code == 303
     assert response.headers["location"] == "/"
 
 
 def test_post_theme_cross_origin_referer_ignored(fresh_client):
+    fresh_client.get("/setup")  # mint the lb_csrf double-submit cookie
     response = fresh_client.post(
         "/theme",
-        data={"theme": "dark"},
+        data={"theme": "dark", "csrf_token": _csrf(fresh_client)},
         headers={"Referer": "http://evil.example/setup"},
         follow_redirects=False,
     )
@@ -193,13 +206,24 @@ def test_post_theme_cross_origin_referer_ignored(fresh_client):
 
 
 def test_post_theme_tampered_value_falls_back_to_default(fresh_client):
-    response = fresh_client.post("/theme", data={"theme": "neon"}, follow_redirects=False)
+    fresh_client.get("/setup")  # mint the lb_csrf double-submit cookie
+    response = fresh_client.post(
+        "/theme",
+        data={"theme": "neon", "csrf_token": _csrf(fresh_client)},
+        follow_redirects=False,
+    )
     assert f"{THEME_COOKIE}=light" in response.headers.get("set-cookie", "")
     assert 'data-theme="light"' in fresh_client.get("/_theme_probe").text
 
 
 def test_post_theme_anonymous_does_not_create_settings_row(fresh_app, fresh_client):
-    fresh_client.post("/theme", data={"theme": "dark"})
+    fresh_client.get("/setup")  # mint the lb_csrf double-submit cookie
+    response = fresh_client.post(
+        "/theme",
+        data={"theme": "dark", "csrf_token": _csrf(fresh_client)},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
     session = fresh_app.state.session_factory()
     try:
         # Anonymous never writes a settings row (there is no user to attach
@@ -211,7 +235,7 @@ def test_post_theme_anonymous_does_not_create_settings_row(fresh_app, fresh_clie
 
 def test_post_theme_signed_in_syncs_settings_row(client, app):
     client.post("/api/auth/login", json={"username": "alice", "password": "alice-pass"})
-    client.post("/theme", data={"theme": "dark"})
+    client.post("/theme", data={"theme": "dark", "csrf_token": _csrf(client)})
     session = app.state.session_factory()
     try:
         alice = UserRepository(session, None).get_by_username("alice")
