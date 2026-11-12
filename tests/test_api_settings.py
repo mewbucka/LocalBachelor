@@ -22,6 +22,7 @@ from app.main import create_app
 from app.models import Base
 from app.repositories.settings import SettingsRepository
 from app.repositories.users import UserRepository
+from tests.conftest import stamp_alembic_head
 
 
 @pytest.fixture()
@@ -29,6 +30,7 @@ def app(config_file) -> FastAPI:
     """Seeded instance: admin, alice."""
     application = create_app(config_file)
     Base.metadata.create_all(application.state.engine)
+    stamp_alembic_head(application.state.engine)
     session = application.state.session_factory()
     repo = UserRepository(session, None)
     repo.create("admin", "admin-pass", role="admin")

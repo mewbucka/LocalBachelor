@@ -19,6 +19,7 @@ from app.core.csrf import CSRF_COOKIE
 from app.main import create_app
 from app.models import Base
 from app.repositories.users import UserRepository
+from tests.conftest import stamp_alembic_head
 
 PASSWORD = "correct-horse-battery"
 
@@ -34,6 +35,7 @@ def app(config_file):
     # Fresh instance: tables created, NO users seeded (the wizard bootstraps
     # the first account; seeding would defeat the pre-setup state).
     Base.metadata.create_all(application.state.engine)
+    stamp_alembic_head(application.state.engine)
 
     @application.get("/_me")
     def me(user=Depends(get_current_user)):

@@ -663,6 +663,15 @@ Caddy HTTPS; log rotation.
   parity with the systemd deployment.
 - **Backup/restore (Phase 8 gate):** DB file + `data_dir` +
   `settings_key`.
+- **Schema preflight (fixup 0.3):** at startup the lifespan hook reads
+  `alembic_version.version_num` and compares it to the alembic head.
+  If the schema is missing or outdated the app enters **degraded
+  mode**: `/healthz` → 503 `{"status":"degraded","schema":"…"}`,
+  API routes → 503 structured JSON, browser routes → 503 localized
+  HTML naming `alembic upgrade head`. The preflight is read-only
+  (never creates tables); the operator runs `alembic upgrade head`
+  manually. The guard is the outermost middleware so inner middlewares
+  (session / theme / i18n) never open DB sessions on a degraded DB.
 
 ## 16. Evaluation protocol (contract)
 
@@ -800,6 +809,21 @@ Target-server environment probe — RESOLVED
    Enforcement splits by caller kind — form-encoded → any caller;
    JSON/non-form → signed-in only; `/setup` → pre-setup only (see §13).
    The posture is pinned by
-   `tests/test_security_baseline.py::test_csrf_default_deny_covers_every_mutating_route`,
-   which sweeps the app's routes, asserts the protected method set, and
-   self-polices `_CSRF_EXEMPT`. **Status:** RESOLVED (1.6 fixup, 2026-11-11).
+    `tests/test_security_baseline.py::test_csrf_default_deny_covers_every_mutating_route`,
+    which sweeps the app's routes, asserts the protected method set, and
+    self-polices `_CSRF_EXEMPT`. **Status:** RESOLVED (1.6 fixup, 2026-11-11).
+ 10. **Startup schema preflight semantics** — RESOLVED (fixup 0.3,
+     2026-11-12). The preflight runs in FastAPI's **lifespan** hook
+     (not the factory body) so test fixtures that build the schema via
+     `create_all` + stamp `alembic_version` pass the check at
+     `with TestClient(app)`. The guard is the **outermost** middleware
+     (registered last) so it short-circuits before session / theme /
+     i18n open DB sessions. The preflight is **read-only** (reads
+     `alembic_version.version_num`, never creates tables). Degraded
+     mode: 503 on all routes; `/healthz` returns
+     `{"status":"degraded","schema":"missing|outdated"}`; API routes
+     return structured 503 JSON; browser routes return minimal
+     localized HTML naming `alembic upgrade head`. Test fixtures use
+     `stamp_alembic_head(engine)` (conftest helper) instead of running
+     the real alembic migration (whose `env.py` would resolve the DB
+     URL from the repo-root `config.yaml`).

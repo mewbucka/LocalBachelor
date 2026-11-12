@@ -2,6 +2,10 @@ import json
 from pathlib import Path
 
 import pytest
+from alembic.config import Config
+from alembic.script import ScriptDirectory
+from sqlalchemy import text
+from sqlalchemy.engine import Engine
 
 
 @pytest.fixture()
@@ -59,3 +63,36 @@ def db_session(config_file):
     finally:
         session.close()
         engine.dispose()
+
+
+def stamp_alembic_head(engine: Engine) -> None:
+    """Create the ``alembic_version`` table and stamp it with the head
+    revision so the startup schema preflight passes.
+
+    HTTP-level test fixtures use ``create_all`` (not the real alembic
+    migration) to build the schema; without this stamp the preflight
+    would see no recorded revision and flag the DB as degraded.  The
+    real alembic migration is NOT run here because ``env.py`` resolves
+    the DB URL from the repo-root ``config.yaml`` (which would target
+    the real database, not the test's temp one).
+    """
+    ini_path = Path(__file__).resolve().parent.parent / "alembic.ini"
+    config = Config(str(ini_path))
+    script_dir = ScriptDirectory.from_config(config)
+    heads = script_dir.get_heads()
+    assert len(heads) == 1, f"expected a single alembic head, got {heads}"
+    head = heads[0]
+
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "CREATE TABLE IF NOT EXISTS alembic_version ("
+                "version_num VARCHAR(32) NOT NULL, "
+                "CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num))"
+            )
+        )
+        conn.execute(text("DELETE FROM alembic_version"))
+        conn.execute(
+            text("INSERT INTO alembic_version (version_num) VALUES (:v)"),
+            {"v": head},
+        )

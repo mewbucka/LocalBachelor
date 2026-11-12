@@ -26,6 +26,7 @@ from app.i18n import load_catalog
 from app.main import create_app
 from app.models import Base
 from app.repositories.users import UserRepository
+from tests.conftest import stamp_alembic_head
 
 STYLE_CSS = Path(__file__).resolve().parent.parent / "app" / "static" / "style.css"
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "app" / "templates"
@@ -36,6 +37,7 @@ def app(config_file) -> FastAPI:
     """Seeded (set-up) instance: admin, alice (en), petr (uk)."""
     application = create_app(config_file)
     Base.metadata.create_all(application.state.engine)
+    stamp_alembic_head(application.state.engine)
     session = application.state.session_factory()
     repo = UserRepository(session, None)
     repo.create("admin", "admin-pass", role="admin")
@@ -51,6 +53,7 @@ def fresh_app(config_file) -> FastAPI:
     """Fresh instance (no users) for the /setup wizard."""
     application = create_app(config_file)
     Base.metadata.create_all(application.state.engine)
+    stamp_alembic_head(application.state.engine)
     return application
 
 

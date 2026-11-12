@@ -53,5 +53,7 @@
   "admin.deactivate": "Deactivate",
   "admin.activate": "Activate",
   "admin.reset_password": "Reset password",
-  "admin.error.last_admin": "Cannot deactivate the last active administrator"
+  "admin.error.last_admin": "Cannot deactivate the last active administrator",
+  "error.schema_degraded_title": "LocalBachelor is not ready",
+  "error.schema_degraded": "The database schema is not up to date. Run `alembic upgrade head` in the project directory, then restart the server. See README → Deployment."
 }

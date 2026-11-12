@@ -34,6 +34,7 @@ from app.core.csrf import CSRF_COOKIE
 from app.main import _CSRF_EXEMPT, _CSRF_MUTATING_METHODS, create_app
 from app.models import Base
 from app.repositories.users import UserRepository
+from tests.conftest import stamp_alembic_head
 
 # A double-submit value that can never match a real cookie.
 _FAKE_TOKEN = "attacker-forged-token"
@@ -79,6 +80,7 @@ def _build_app(config: Path, *, seed: bool = True) -> tuple[FastAPI, list[loggin
         app_logger.removeHandler(handler)
 
     Base.metadata.create_all(application.state.engine)
+    stamp_alembic_head(application.state.engine)
     if seed:
         session = application.state.session_factory()
         repo = UserRepository(session, None)

@@ -17,6 +17,7 @@ from app.core.csrf import CSRF_COOKIE
 from app.main import create_app
 from app.models import Base
 from app.repositories.users import UserRepository
+from tests.conftest import stamp_alembic_head
 
 
 @pytest.fixture()
@@ -25,6 +26,7 @@ def app(config_file):
     # create_app does not create tables (alembic owns migrations); the test
     # creates them and seeds users directly.
     Base.metadata.create_all(application.state.engine)
+    stamp_alembic_head(application.state.engine)
     session = application.state.session_factory()
     repo = UserRepository(session, None)
     repo.create("admin", "admin-pass", role="admin")

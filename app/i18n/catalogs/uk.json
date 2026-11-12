@@ -53,5 +53,7 @@
   "admin.deactivate": "Деактивувати",
   "admin.activate": "Активувати",
   "admin.reset_password": "Скинути пароль",
-  "admin.error.last_admin": "Неможливо деактивувати останнього активного адміністратора"
+  "admin.error.last_admin": "Неможливо деактивувати останнього активного адміністратора",
+  "error.schema_degraded_title": "LocalBachelor не готовий",
+  "error.schema_degraded": "Схему бази даних не оновлено. Виконайте `alembic upgrade head` у каталозі проєкту, потім перезапустіть сервер. Див. README → Deployment."
 }

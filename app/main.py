@@ -10,11 +10,13 @@ from __future__ import annotations
 
 import argparse
 import logging
+from contextlib import asynccontextmanager
+from html import escape
 from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.admin import router as admin_router
@@ -30,6 +32,7 @@ from app.core.auth import SessionManager, resolve_session_user_id
 from app.core.csrf import CSRF_FORM_FIELD, CSRF_HEADER, CsrfManager, is_form_encoded
 from app.core.errors import CORRELATION_HEADER, correlation_id_for, register_error_handlers
 from app.core.logging import setup_logging
+from app.core.preflight import MIGRATE_CMD, SchemaStatus, run_preflight
 from app.core.theme import resolve_theme
 from app.db.engine import create_session_factory, init_engine
 from app.i18n import create_templates, request_locale, resolve_locale, translate
@@ -129,7 +132,25 @@ def create_app(config_path: str | Path = "config.yaml") -> FastAPI:
     engine = init_engine(settings)
     session_factory = create_session_factory(engine)
 
-    app = FastAPI(title="LocalBachelor", debug=False)
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        """Startup: schema preflight. Shutdown: dispose engine."""
+        result = run_preflight(engine)
+        app.state.schema_status = result.status
+        app.state.schema_head = result.head
+        app.state.schema_current = result.current
+        if result.status is not SchemaStatus.OK:
+            logger.error(
+                "schema preflight failed: %s (head=%s, current=%s) — run `%s`",
+                result.status.value,
+                result.head,
+                result.current,
+                MIGRATE_CMD,
+            )
+        yield
+        engine.dispose()
+
+    app = FastAPI(title="LocalBachelor", debug=False, lifespan=lifespan)
     app.state.settings = settings
     app.state.engine = engine
     app.state.session_factory = session_factory
@@ -255,6 +276,60 @@ def create_app(config_path: str | Path = "config.yaml") -> FastAPI:
         # (get_current_user) read the result from request.state.
         request.state.session_user_id = resolve_session_user_id(request)
         return await call_next(request)
+
+    @app.middleware("http")
+    async def schema_guard_middleware(request: Request, call_next):
+        """Outermost middleware: short-circuit all traffic when the schema
+        is degraded (missing / outdated) so inner middlewares (session,
+        theme, i18n) never open DB sessions.
+
+        - ``/healthz`` → 503 ``{"status":"degraded","schema":"…"}``
+        - ``/api/*`` → 503 structured JSON (error / detail / schema /
+          correlation_id + X-Request-ID header)
+        - browser routes → 503 minimal localized HTML naming the fix
+        """
+        status: SchemaStatus = getattr(
+            request.app.state, "schema_status", SchemaStatus.OK
+        )
+        if status is SchemaStatus.OK:
+            return await call_next(request)
+
+        schema = status.value  # "missing" | "outdated"
+        cid = correlation_id_for(request)
+        # DB-free locale: the guard runs before session middleware, so
+        # request.state.session_user_id is unset; resolve_locale with
+        # db=None uses the anonymous chain (cookie → Accept-Language → en).
+        locale = resolve_locale(request, None)
+
+        if request.url.path == "/healthz":
+            return JSONResponse(
+                status_code=503,
+                content={"status": "degraded", "schema": schema},
+            )
+
+        if request.url.path.startswith("/api/"):
+            detail = translate("error.schema_degraded", locale)
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "error": "service_unavailable",
+                    "detail": detail,
+                    "schema": schema,
+                    "correlation_id": cid,
+                },
+                headers={CORRELATION_HEADER: cid},
+            )
+
+        # Browser routes: minimal localized HTML.
+        title = escape(translate("error.schema_degraded_title", locale))
+        message = escape(translate("error.schema_degraded", locale))
+        html = (
+            f'<!doctype html>\n<html lang="{locale}">\n'
+            f'<head><meta charset="utf-8"><title>{title}</title></head>\n'
+            f"<body>\n<h1>{title}</h1>\n<p>{message}</p>\n"
+            f"</body>\n</html>"
+        )
+        return HTMLResponse(status_code=503, content=html, headers={CORRELATION_HEADER: cid})
 
     register_error_handlers(app)
     app.include_router(auth_router)

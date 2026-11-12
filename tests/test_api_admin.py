@@ -18,6 +18,7 @@ from app.core.csrf import CSRF_COOKIE
 from app.main import create_app
 from app.models import Base
 from app.repositories.users import UserRepository
+from tests.conftest import stamp_alembic_head
 
 _CSRF_FIELD = re.compile(r'name="csrf_token"\s+value="([^"]+)"')
 
@@ -45,6 +46,7 @@ def app(config_file):
     """One admin + one user (the single-admin instance)."""
     application = create_app(config_file)
     Base.metadata.create_all(application.state.engine)
+    stamp_alembic_head(application.state.engine)
     session = application.state.session_factory()
     repo = UserRepository(session, None)
     repo.create("admin", "admin-pass", role="admin")
@@ -59,6 +61,7 @@ def two_admins_app(config_file):
     """Two active admins + one user (to exercise the last-admin guard)."""
     application = create_app(config_file)
     Base.metadata.create_all(application.state.engine)
+    stamp_alembic_head(application.state.engine)
     session = application.state.session_factory()
     repo = UserRepository(session, None)
     repo.create("admin", "admin-pass", role="admin")
@@ -74,6 +77,7 @@ def uk_admin_app(config_file):
     """A uk-language admin (to verify the page renders in the user's locale)."""
     application = create_app(config_file)
     Base.metadata.create_all(application.state.engine)
+    stamp_alembic_head(application.state.engine)
     session = application.state.session_factory()
     repo = UserRepository(session, None)
     repo.create("admin", "admin-pass", role="admin", lang="uk")

@@ -19,6 +19,7 @@ from app.i18n import LANG_COOKIE, load_catalog, translate
 from app.main import create_app
 from app.models import Base
 from app.repositories.users import UserRepository
+from tests.conftest import stamp_alembic_head
 
 PASSWORD = "correct-horse-battery"
 
@@ -52,6 +53,7 @@ def app(config_file) -> FastAPI:
     """Seeded instance: admin, alice (lang=en), petr (lang=uk)."""
     application = create_app(config_file)
     Base.metadata.create_all(application.state.engine)
+    stamp_alembic_head(application.state.engine)
     session = application.state.session_factory()
     repo = UserRepository(session, None)
     repo.create("admin", "admin-pass", role="admin")
@@ -68,6 +70,7 @@ def fresh_app(config_file) -> FastAPI:
     """Fresh instance (no users) for the /setup wizard + switcher tests."""
     application = create_app(config_file)
     Base.metadata.create_all(application.state.engine)
+    stamp_alembic_head(application.state.engine)
     _register_probes(application)
     return application
 
