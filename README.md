@@ -250,6 +250,24 @@ section 17 (Open decisions, item 7).
 | `sqlite_vec` | The sqlite-vec extension loads and `vec0` vector tables roundtrip — the vector half of retrieval. | `pip install sqlite-vec` in the app venv. If the package is installed but loading fails with `not authorized`, the interpreter's SQLite was built without loadable extensions — use a Python build that allows them. Alternatively set `SQLITE_VEC_PATH` to a system `vec0` shared library. |
 | `fts5_icu` | Optional: the ICU tokenizer for FTS5 (better uk/en tokenization). | Not required — FTS5 falls back to `unicode61` (architecture.md §17 item 3). To enable, use a SQLite build compiled with ICU. |
 
+## Deployment smoke test
+
+A cross-platform end-to-end check that a fresh checkout deploys correctly.
+Runs in a throwaway temp directory — **never** touches the repo's
+`config.yaml` or `data_dir`.
+
+```sh
+# Full end-to-end (temp dir: config → migrate → start → endpoint checks)
+python scripts/deploy_smoke.py --clean
+
+# Check a running server (skips install/migrate/start)
+python scripts/deploy_smoke.py --live --base-url http://192.168.1.50:8000
+```
+
+Exit code 0: all checks passed. Non-zero: a check failed (the failing
+check is named in the output). Run it on a target server after deployment
+to confirm the instance is serving.
+
 ## Evaluations
 
 - `evals/docs/` — two sample documents, ~500 words each, with numbered
