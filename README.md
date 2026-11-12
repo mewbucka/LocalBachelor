@@ -29,14 +29,15 @@ Source of truth: `architecture.md`. Process: `roadmap.md`.
    Add the `gguf` extra (`pip install -e ".[dev,gguf]"`) only if you want the
    post-MVP in-process GGUF embedding loader (task 2.10).
 
-2. Create the bootstrap config (gitignored):
+   Both `pip` and `uv` work. With [uv](https://docs.astral.sh/uv/):
 
    ```sh
-   cp config.example.yaml config.yaml
+   uv venv .venv
+   source .venv/bin/activate
+   uv pip install -e ".[dev]"
    ```
 
-   Then generate the two keys and paste them into `config.yaml`, replacing
-   the `CHANGE_ME_...` placeholders:
+2. Generate the two bootstrap keys:
 
    ```sh
    # secret_key — signs the session cookie + CSRF token
@@ -50,7 +51,28 @@ Source of truth: `architecture.md`. Process: `roadmap.md`.
    Semantics, loss consequences, and the rotation procedure:
    [Bootstrap keys](#bootstrap-keys).
 
-3. Start the app from the repo root:
+3. Create the bootstrap config (gitignored) and paste the keys:
+
+   ```sh
+   cp config.example.yaml config.yaml
+   ```
+
+   Open `config.yaml` and replace both empty `secret_key` / `settings_key`
+   values with the keys you generated in step 2.
+
+4. **Apply the database schema (mandatory):**
+
+   ```sh
+   alembic upgrade head
+   ```
+
+   This creates the SQLite database and applies all migrations. The app
+   will not serve normal traffic until this is done: on an unmigrated or
+   outdated schema the server starts in **degraded mode** (503 on all
+   routes, `/healthz` reports `{"status":"degraded"}`). Re-run
+   `alembic upgrade head` after any code update that adds a migration.
+
+5. Start the app from the repo root:
 
    ```sh
    python -m app.main --config config.yaml
@@ -60,7 +82,7 @@ Source of truth: `architecture.md`. Process: `roadmap.md`.
    On a Linux server, run it as a service instead: `deploy/local-bachelor.service`
    (user-level or system-level install; both shown in the unit's comments).
 
-4. Smoke check — the Phase 0 skeleton serves exactly one endpoint:
+6. Smoke check:
 
    ```sh
    curl http://127.0.0.1:8000/healthz
@@ -69,9 +91,8 @@ Source of truth: `architecture.md`. Process: `roadmap.md`.
 
    Stop the server with Ctrl+C (or `systemctl stop local-bachelor`).
 
-5. The admin account will be created by the first-run wizard (task 1.2,
-   Phase 1), which also picks the UI language (en/uk). Until Phase 1 lands
-   there is no login page, no UI, and no user data.
+7. Open `http://127.0.0.1:8000/` in a browser — the first-run wizard
+   creates the admin account and picks the UI language (en/uk).
 
 ## Development
 
@@ -168,6 +189,23 @@ context, and "Add to sources" is an explicit per-card action.
 `db_path`, `data_dir`, `host` (default `127.0.0.1`; `0.0.0.0` for LAN opt-in
 with UI warning), `port`. All other settings live in the DB and are edited
 via the UI.
+
+## Network access modes
+
+| `host` in `config.yaml` | Reachable from | Warning |
+|---|---|---|
+| `127.0.0.1` (default) | This device only (loopback) | None |
+| `0.0.0.0` | The local network (LAN opt-in) | Startup log warning + UI banner |
+
+The default is loopback-only. Setting `host` to anything other than
+`127.0.0.1` / `localhost` / `::1` is an explicit opt-in: the app logs a
+startup warning and renders a persistent banner in the UI so the operator
+is aware the instance is reachable from other devices on the network.
+
+Cookies always carry `SameSite=Lax`; the `Secure` flag is added when the
+request arrives over HTTPS (direct scheme or a terminating proxy's
+`X-Forwarded-Proto`), so plain-HTTP loopback and HTTPS-behind-proxy both
+work.
 
 ## Cookies
 

@@ -285,11 +285,13 @@ See Embedding contract (section 5) — `model_id`, `dim`, `normalize`,
   L2-normalized vectors); the interface is the seam for Qdrant later.
 - **Extension loading:** `SQLiteVecStore` MUST call
   `conn.enable_load_extension(True)` before loading the sqlite-vec
-  extension — Python 3.11+ disables extension loading by default. If the
-  attribute is absent (a distro Python built without loadable-extension
-  support) or the call fails, the store MUST fail fast at startup with a
-  clear error pointing to README → Deployment (run the environment probe
-  with the app venv's Python). The 0.6 probe checks exactly this path.
+  extension — CPython's `sqlite3` module disables loadable extensions by
+  default (this is the general CPython behaviour, not a 3.11-specific
+  change). Some distro Python builds lack the `enable_load_extension`
+  attribute entirely. If the attribute is absent or the call fails, the
+  store MUST fail fast at startup with a clear error pointing to
+  README → Deployment (run the environment probe with the app venv's
+  Python). The 0.6 probe checks exactly this path.
 
 ### TextParser (extractors)
 - `parse(data) → ParsedDoc { text, pages[(page, text)], headings[(path, char range)] }`
@@ -787,15 +789,32 @@ Target-server environment probe — RESOLVED
 
 **Status:** RESOLVED. Task 0.6 complete.
 
-   Server: `<hostname>` — probed `<YYYY-MM-DD>`
+Target-server environment probe (second target) — RESOLVED
 
-   | Check | Required | Found | Status |
-   |---|---|---|---|
-   | python | >= 3.12 | _pending_ | _pending_ |
-   | sqlite_wal | WAL journal mode | _pending_ | _pending_ |
-   | fts5 | FTS5 virtual tables | _pending_ | _pending_ |
-   | sqlite_vec | extension + vec0 | _pending_ | _pending_ |
-   | fts5_icu | optional (unicode61 fallback) | _pending_ | _pending_ |
+**Task:** 0.6 (second target)  
+**Date:** 2026-11-12  
+**Target:** Debian 13 (trixie), x86_64  
+**Probe:** `scripts/probe_env.py`  
+**Result:** PASS — 4/4 critical checks passed, exit code 0.
+
+| Component | Detected version / result | Status |
+|---|---|---|
+| Python | CPython 3.12.16 | PASS |
+| SQLite | 3.53.1 | PASS |
+| SQLite WAL | `journal_mode=wal` | PASS |
+| SQLite FTS5 | CREATE / INSERT / MATCH successful | PASS |
+| sqlite-vec | v0.1.9, vec0 KNN roundtrip successful | PASS |
+| ICU tokenizer | Not available | WARN (optional) |
+| FTS5 fallback | `unicode61` | Accepted |
+
+**Environment details:**
+- Platform: Debian 13 (trixie), kernel 6.12, x86_64.
+- Python virtual environment: app `.venv`.
+- Probe output: printed to stdout.
+
+**Decision:** The second target satisfies all critical environment requirements. ICU is unavailable, so FTS5 uses the `unicode61` tokenizer (consistent with the first target, §17 item 3). No blocker for deployment.
+
+**Status:** RESOLVED.
 
 8. **CSRF multipart handling** — the CSRF middleware buffers mutating
    request bodies (`request.body()` before parse; see §13). Decide

@@ -9,19 +9,23 @@
 
 # Session signing + CSRF key: signs the auth session cookie and the
 # double-submit CSRF token.
-# Generate:  python -c "import secrets; print(secrets.token_urlsafe(32))"
+# REPLACE with a generated value:
+#   python -c "import secrets; print(secrets.token_urlsafe(32))"
 # Losing it invalidates all active sessions (users re-login); no data is lost.
-secret_key: "CHANGE_ME_token_urlsafe_32"
+# The app REFUSES to start with an empty key.
+secret_key: ""
 
 # Fernet key for encrypting stored provider API keys at rest in the DB
 # settings store. Key storage is OPTIONAL: fully local (keyless) deployments
 # never store provider keys and can leave this as a generated dummy value.
-# Generate:  pip install cryptography
-#            python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# REPLACE with a generated value:
+#   pip install cryptography
+#   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 # Losing it makes stored provider keys UNRECOVERABLE: they must be re-entered
 # through the settings UI. Backing up this key alongside the DB is a Phase 8
 # gate for public deploys.
-settings_key: "CHANGE_ME_fernet_key"
+# The app REFUSES to start with an empty key.
+settings_key: ""
 
 # Path to the SQLite database file (WAL mode).
 # Give an ABSOLUTE path, or a path RELATIVE TO data_dir (the default below
