@@ -1,5 +1,14 @@
 # LocalBachelor systemd unit (roadmap task 0.4; architecture.md §15).
 #
+# TEMPLATE — do not install this file as-is: the paths below are
+# placeholders and the %h / default.target spec only makes sense in a
+# user-level unit.
+#
+# template; run scripts/install_systemd.py to generate a valid unit for
+# this host:
+#   .venv/bin/python scripts/install_systemd.py --dry-run   # print only
+#   sudo .venv/bin/python scripts/install_systemd.py        # install
+#
 # Single process: FastAPI app + in-process job worker (SQLite in data_dir,
 # WAL mode). No separate worker service in v1.
 #
@@ -10,21 +19,22 @@
 # ExecStart mirrors the real CLI in app/main.py exactly:
 #     python -m app.main --config <abs path to config.yaml>
 #
-# Before enabling, point the two paths below at your checkout:
+# --- Manual install (FALLBACK — the script is the primary path) ---
+# Point the two paths below at your checkout:
 #   WorkingDirectory=  the repo root (relative db_path / data_dir in
 #                      config.yaml resolve against this directory)
 #   ExecStart=         your venv's python + the absolute config.yaml path
 # `%h` expands to the user's home directory in user-level units; in a
 # system-level unit replace every %h with the absolute checkout path.
 #
-# --- Install (user-level, no root; recommended for a single-user box) ---
+# User-level (no root; a single-user box):
 #   install -Dm644 deploy/local-bachelor.service \
 #       "$HOME/.config/systemd/user/local-bachelor.service"
 #   systemctl --user daemon-reload
 #   systemctl --user enable --now local-bachelor.service
 #   loginctl enable-linger "$USER"      # keep it running after logout
 #
-# --- Install (system-level, shared/server box) ---
+# System-level (shared/server box):
 #   Change [Install] WantedBy= to: multi-user.target
 #   sudo cp deploy/local-bachelor.service /etc/systemd/system/
 #   sudo systemctl daemon-reload

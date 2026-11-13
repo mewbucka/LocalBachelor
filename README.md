@@ -78,9 +78,9 @@ Source of truth: `architecture.md`. Process: `roadmap.md`.
    python -m app.main --config config.yaml
    ```
 
-   `host`/`port` are read from `config.yaml` (default `127.0.0.1:8000`).
-   On a Linux server, run it as a service instead: `deploy/local-bachelor.service`
-   (user-level or system-level install; both shown in the unit's comments).
+    `host`/`port` are read from `config.yaml` (default `127.0.0.1:8000`).
+    On a Linux server, run it as a service instead:
+    `.venv/bin/python scripts/install_systemd.py` (see Deployment below).
 
 6. Smoke check:
 
@@ -249,6 +249,37 @@ section 17 (Open decisions, item 7).
 | `fts5` | FTS5 virtual tables work — the BM25 half of hybrid retrieval. | Use a SQLite build with FTS5 (most distro builds include it) so the interpreter links it. |
 | `sqlite_vec` | The sqlite-vec extension loads and `vec0` vector tables roundtrip — the vector half of retrieval. | `pip install sqlite-vec` in the app venv. If the package is installed but loading fails with `not authorized`, the interpreter's SQLite was built without loadable extensions — use a Python build that allows them. Alternatively set `SQLITE_VEC_PATH` to a system `vec0` shared library. |
 | `fts5_icu` | Optional: the ICU tokenizer for FTS5 (better uk/en tokenization). | Not required — FTS5 falls back to `unicode61` (architecture.md §17 item 3). To enable, use a SQLite build compiled with ICU. |
+
+### Installing the systemd service
+
+Generate a valid system unit for this host and install it to
+`/etc/systemd/system/<name>.service`. The script fills in the venv's
+Python, the repo root (`WorkingDirectory`), and the absolute `config.yaml`
+path (`ExecStart` mirrors the CLI above); it sets `User=`/`Group=` to the
+invoking user (or `--user <name>` for a dedicated account) and
+`WantedBy=multi-user.target`. The unit contains no secrets — the bootstrap
+keys stay in the gitignored `config.yaml`.
+
+```sh
+# 1. Print the unit without writing anything
+.venv/bin/python scripts/install_systemd.py --dry-run
+
+# 2. Install it (needs root; an existing unit is refused without --force)
+sudo .venv/bin/python scripts/install_systemd.py
+
+# 3. What the script prints next (or pass --apply to step 2 to run it):
+sudo systemctl daemon-reload
+sudo systemctl enable --now local-bachelor.service
+```
+
+The unit starts the app only once `config.yaml` exists and
+`alembic upgrade head` has been run (first-run steps above); without it the
+service fails its preflight and reports degraded.
+
+Fallback — manual: `deploy/local-bachelor.service` is a reference template
+(placeholder paths + the `%h` user-unit spec); copy it to
+`~/.config/systemd/user/` or `/etc/systemd/system/` and edit the two paths
+and `WantedBy=` yourself, per the comments in the template.
 
 ## Deployment smoke test
 
