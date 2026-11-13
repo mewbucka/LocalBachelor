@@ -121,6 +121,30 @@ def test_schema_state_after_lifespan(client, app):
     assert app.state.schema_current == "0002"
 
 
+def test_guard_fails_closed_when_preflight_absent(app):
+    """b2: if the preflight result is absent from ``app.state`` (the preflight
+    never populated it), the schema guard fails CLOSED (degraded) and never
+    assumes a healthy schema. Within one TestClient context the lifespan runs
+    once and stores the healthy state; deleting that attribute simulates the
+    preflight never having run, so the guard's ``getattr`` default must be
+    ``MISSING`` — not ``OK``."""
+    with TestClient(app) as test_client:
+        # Healthy: the lifespan populated the state on context entry.
+        assert app.state.schema_status is SchemaStatus.OK
+        # Simulate the preflight never having populated the state.
+        del app.state.schema_status
+        # The guard must fail closed on every route class.
+        healthz = test_client.get("/healthz")
+        assert healthz.status_code == 503
+        assert healthz.json() == {"status": "degraded", "schema": "missing"}
+        api = test_client.get("/api/auth/first-run")
+        assert api.status_code == 503
+        assert api.json()["schema"] == "missing"
+        browser = test_client.get("/login")
+        assert browser.status_code == 503
+        assert "alembic upgrade head" in browser.text
+
+
 # -- error shapes (migrated app) --------------------------------------------------
 
 

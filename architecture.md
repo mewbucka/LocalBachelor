@@ -674,6 +674,10 @@ Caddy HTTPS; log rotation.
   (never creates tables); the operator runs `alembic upgrade head`
   manually. The guard is the outermost middleware so inner middlewares
   (session / theme / i18n) never open DB sessions on a degraded DB.
+  The guard is **fail-closed**: if `app.state.schema_status` is ever absent
+  (the preflight never populated it), the guard treats the schema as MISSING
+  — never OK — so a degraded DB cannot serve traffic on a healthy-by-default
+  assumption (fixup 0.3, b2).
 
 ## 16. Evaluation protocol (contract)
 
@@ -844,5 +848,8 @@ Target-server environment probe (second target) — RESOLVED
      return structured 503 JSON; browser routes return minimal
      localized HTML naming `alembic upgrade head`. Test fixtures use
      `stamp_alembic_head(engine)` (conftest helper) instead of running
-     the real alembic migration (whose `env.py` would resolve the DB
-     URL from the repo-root `config.yaml`).
+      the real alembic migration (whose `env.py` would resolve the DB
+      URL from the repo-root `config.yaml`). **Fail-closed (b2):** the guard's
+      default when `app.state.schema_status` is absent is `MISSING`
+      (degraded), never `OK`; pinned by
+      `tests/test_main.py::test_guard_fails_closed_when_preflight_absent`.

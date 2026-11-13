@@ -287,9 +287,14 @@ def create_app(config_path: str | Path = "config.yaml") -> FastAPI:
         - ``/api/*`` → 503 structured JSON (error / detail / schema /
           correlation_id + X-Request-ID header)
         - browser routes → 503 minimal localized HTML naming the fix
+
+        Fail-closed (b2): if ``app.state.schema_status`` is absent — the
+        preflight never populated it (a guard hit with no lifespan) — the
+        guard treats the schema as MISSING (degraded), never OK, so a
+        degraded DB cannot serve traffic on a healthy-by-default assumption.
         """
         status: SchemaStatus = getattr(
-            request.app.state, "schema_status", SchemaStatus.OK
+            request.app.state, "schema_status", SchemaStatus.MISSING
         )
         if status is SchemaStatus.OK:
             return await call_next(request)
