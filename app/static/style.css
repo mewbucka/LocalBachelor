@@ -382,3 +382,83 @@ a.lb-toggle-btn {
   background: var(--lb-surface);
   color: var(--lb-fg);
 }
+
+/* --- settings page (task 2.1) --- */
+.lb-settings {
+  max-width: 40rem;
+}
+
+.lb-settings h1 {
+  margin: 0 0 0.5rem;
+}
+
+.lb-settings-hint {
+  margin: 0 0 1.25rem;
+  color: var(--lb-fg-muted);
+}
+
+.lb-settings-section {
+  margin-bottom: 1.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--lb-border);
+}
+
+.lb-settings-section h2 {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--lb-fg-muted);
+}
+
+.lb-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--lb-border);
+}
+
+.lb-setting-label {
+  color: var(--lb-fg);
+}
+
+.lb-setting-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.lb-setting-input {
+  font: inherit;
+  width: 14rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--lb-border);
+  border-radius: 0.25rem;
+  background: var(--lb-bg-alt);
+  color: var(--lb-fg-muted);
+}
+
+.lb-setting-badge {
+  font-size: 0.75rem;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--lb-border);
+  border-radius: 0.75rem;
+  color: var(--lb-fg-muted);
+}
+
+.lb-source-own {
+  border-color: var(--lb-accent);
+  color: var(--lb-accent);
+}
+
+.lb-source-admin_default {
+  border-color: var(--lb-warning);
+  color: var(--lb-warning);
+}
+
+.lb-source-code_default {
+  border-color: var(--lb-border);
+  color: var(--lb-fg-muted);
+}

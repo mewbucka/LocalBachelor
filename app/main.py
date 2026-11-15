@@ -24,6 +24,7 @@ from app.api.auth import router as auth_router
 from app.api.lang import router as lang_router
 from app.api.pages import router as pages_router
 from app.api.settings import router as settings_router
+from app.api.settings_page import router as settings_page_router
 from app.api.setup import router as setup_router
 from app.api.theme import router as theme_router
 from app.api.users import router as users_router
@@ -351,6 +352,9 @@ def create_app(config_path: str | Path = "config.yaml") -> FastAPI:
     app.include_router(pages_router)
     app.include_router(settings_router)
     app.include_router(theme_router)
+    # Task 2.1: the /settings page (read-only settings skeleton over the typed
+    # registry in app/core/settings_registry.py).
+    app.include_router(settings_page_router)
     # Task 1.5: the admin user-management page (/admin) and the admin-only
     # /api/admin/users endpoints (create / deactivate / reset password).
     app.include_router(admin_router)

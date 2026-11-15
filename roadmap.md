@@ -136,7 +136,7 @@ Tasks marked (post-MVP) may land after.
 
 ## Phase 2 — Settings & local-first providers (BYOK core)
 
-- [ ] 2.1 DB settings store (typed, defaults) + Settings page skeleton.
+- [x] 2.1 DB settings store (typed, defaults) + Settings page skeleton.
 - [ ] 2.2 Secrets: Fernet on settings_key; masked inputs; optional key
       storage; README: storage/loss/rotation procedure.
 - [ ] 2.3 Chat provider interface + generic OpenAI-compatible adapter

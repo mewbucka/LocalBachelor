@@ -1,0 +1,35 @@
+{#-
+  The settings page (roadmap 2.1).
+
+  The read-only skeleton: every registered key, grouped by section (Chat /
+  Embeddings / Search / Ingestion / UI), showing its effective value with a
+  source badge (own / admin-default / code-default). The inputs are disabled —
+  editing lands in task 2.6. Every static string is a catalog lookup (_());
+  the displayed values are data (numbers, masked secrets, "not set").
+-#}
+{% extends "base.html" %}
+
+{% block title %}{{ _("settings.title") }}{% endblock %}
+
+{% block content %}
+<div class="lb-settings">
+  <h1>{{ _("settings.title") }}</h1>
+  <p class="lb-settings-hint">{{ _("settings.read_only_hint") }}</p>
+
+  {% for section in sections %}
+  <section class="lb-settings-section">
+    <h2>{{ section.title }}</h2>
+    {% for item in section.rows %}
+    <div class="lb-setting-row">
+      <label class="lb-setting-label" for="setting-{{ item.key }}">{{ item.label }}</label>
+      <div class="lb-setting-field">
+        <input class="lb-setting-input" id="setting-{{ item.key }}" type="text"
+               value="{{ item.display }}" disabled aria-disabled="true">
+        <span class="lb-setting-badge lb-source-{{ item.source }}">{{ item.source_label }}</span>
+      </div>
+    </div>
+    {% endfor %}
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}
