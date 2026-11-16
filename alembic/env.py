@@ -15,9 +15,9 @@ from __future__ import annotations
 from logging.config import fileConfig
 from pathlib import Path
 
-from alembic import context
 from sqlalchemy import pool
 
+from alembic import context
 from app.config import load_settings
 from app.db.engine import build_engine
 from app.models import Base

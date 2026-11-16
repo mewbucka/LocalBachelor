@@ -16,8 +16,8 @@ else
   PY=python3
 fi
 
-echo "==> ruff check app tests (lint)"
-"$PY" -m ruff check app tests
+echo "==> ruff check app tests scripts alembic/env.py (lint)"
+"$PY" -m ruff check app tests scripts alembic/env.py
 
 echo "==> pytest -q (tests)"
 "$PY" -m pytest -q

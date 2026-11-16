@@ -52,7 +52,10 @@ def check_python() -> Check:
         required=">= 3.12 (locked stack)",
         ok=(v.major, v.minor) >= MIN_PYTHON,
         found=f"{v.major}.{v.minor}.{v.micro} ({platform.python_implementation()})",
-        fix="install Python 3.12 (distro package / pyenv / deadsnakes PPA) and re-run the probe with it",
+        fix=(
+            "install Python 3.12 (distro package / pyenv / deadsnakes PPA)"
+            " and re-run the probe with it"
+        ),
     )
 
 
@@ -90,7 +93,10 @@ def check_fts5(conn: sqlite3.Connection) -> Check:
             required="FTS5 virtual tables (BM25 half of hybrid retrieval)",
             ok=False,
             found=f"not available: {exc}",
-            fix="use a SQLite build with FTS5 (most distro builds include it) so the interpreter links it",
+            fix=(
+                "use a SQLite build with FTS5 (most distro builds include it)"
+                " so the interpreter links it"
+            ),
         )
     return Check(
         name="fts5",
@@ -137,7 +143,8 @@ def check_sqlite_vec(conn: sqlite3.Connection) -> Check:
         if not path:
             return fail(
                 "python package 'sqlite-vec' not installed; SQLITE_VEC_PATH not set",
-                "pip install sqlite-vec in the app venv, or set SQLITE_VEC_PATH to a vec0 shared library",
+                "pip install sqlite-vec in the app venv, or set SQLITE_VEC_PATH"
+                " to a vec0 shared library",
             )
         try:
             conn.enable_load_extension(True)
@@ -159,7 +166,11 @@ def check_sqlite_vec(conn: sqlite3.Connection) -> Check:
         return fail("vec0 KNN query returned no row")
 
     ver = _vec_version(conn)
-    found = f"sqlite-vec {ver}, vec0 KNN roundtrip ok" if ver else "vec0 KNN roundtrip ok (version unknown)"
+    found = (
+        f"sqlite-vec {ver}, vec0 KNN roundtrip ok"
+        if ver
+        else "vec0 KNN roundtrip ok (version unknown)"
+    )
     return Check(name="sqlite_vec", required=required, ok=True, found=found)
 
 
@@ -181,8 +192,11 @@ def check_fts5_icu(conn: sqlite3.Connection) -> Check:
         ok=any_ok,
         found="; ".join(details),
         critical=False,
-        fix="not required; FTS5 falls back to the unicode61 tokenizer (architecture.md section 17 item 3); "
-        "to enable, use a SQLite build compiled with ICU",
+        fix=(
+            "not required; FTS5 falls back to the unicode61 tokenizer"
+            " (architecture.md section 17 item 3);"
+            " to enable, use a SQLite build compiled with ICU"
+        ),
     )
 
 
